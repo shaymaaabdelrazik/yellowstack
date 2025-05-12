@@ -1,0 +1,728 @@
+<!-- templates/execution_history.html -->
+{% extends "layout.html" %}
+
+{% block head %}
+<style>
+    /* Custom styling for status badges to ensure consistent colors */
+    .badge.bg-warning {
+        background-color: #f59f00 !important;
+        color: #fff !important;
+    }
+    
+    /* Style for Running status - green with pulse animation */
+    .badge.badge-running, .badge.bg-primary {
+        background-color: #e6f4ea !important;
+        color: #28a745 !important;
+        border: 1px solid #28a745 !important;
+        font-weight: 500 !important;
+    }
+    
+    /* Animation for the pulsing dot in "Running" status */
+    @keyframes pulse {
+        0% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.1); opacity: 0.8; }
+        100% { transform: scale(1); opacity: 1; }
+    }
+    
+    .live-dot {
+        display: inline-block;
+        height: 8px;
+        width: 8px;
+        background-color: #28a745;
+        border-radius: 50%;
+        margin-right: 6px;
+        animation: pulse 1.5s infinite;
+    }
+    
+    /* Styles for execution type badges - match screenshot exactly */
+    .badge.scheduled, .badge.scheduled-badge {
+        background-color: #0d6efd !important; /* Blue as shown in screenshot */
+        color: #fff !important;
+    }
+    
+    .badge.manual, .badge.manual-badge {
+        background-color: #198754 !important; /* Green as shown in screenshot */
+        color: #fff !important;
+    }
+    
+    /* Styles for script parameter badges */
+    .parameter-badge {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 150px;
+    }
+    
+    /* Improved filter section styling */
+    .card.filter-card {
+        border: 1px solid rgba(0, 0, 0, 0.125);
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+        transition: all 0.3s ease;
+        margin-bottom: 1.5rem;
+    }
+    
+    .card.filter-card:hover {
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+    }
+
+    .filter-card .card-header {
+        background-color: #e3f2fd;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.125);
+        cursor: pointer;
+        transition: background-color 0.2s ease;
+        padding: 0.75rem 1.25rem;
+    }
+
+    .filter-card .card-header:hover {
+        background-color: #bbdefb;
+    }
+    
+    /* Styling for the arrow icon animation */
+    #filtersIcon {
+        transition: transform 0.3s ease;
+    }
+    
+    /* Class for arrow rotation animation */
+    .rotated {
+        transform: rotate(180deg);
+    }
+    
+    /* Responsive pagination styles */
+    #historyPagination .page-item .page-link {
+        padding: 0.25rem 0.5rem;
+    }
+    
+    @media (max-width: 767px) {
+        #historyPagination .page-item .page-link {
+            padding: 0.2rem 0.4rem;
+            font-size: 0.85rem;
+        }
+    }
+    
+    /* Ensure table scrolls horizontally on small screens */
+    .table-responsive {
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1>Execution History</h1>
+        <p class="text-muted">View the history of executed scripts. Recent executions are automatically updated in real-time.</p>
+        
+        <!-- Filter section - collapsible filter panel -->
+        <div class="card mb-4 filter-card">
+            <div class="card-header d-flex justify-content-between align-items-center" id="filtersHeader">
+                <h3 class="card-title mb-0">Filters</h3>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="toggleFiltersBtn" data-bs-toggle="collapse" data-bs-target="#filtersContent" aria-expanded="false">
+                    <i class="ti ti-chevron-down" id="filtersIcon"></i>
+                </button>
+            </div>
+            <div class="collapse" id="filtersContent">
+                <div class="card-body">
+                    <form id="historyFilterForm" class="row g-3">
+                        <div class="col-md-3">
+                            <label class="form-label">Script</label>
+                            <select class="form-select" id="scriptFilter">
+                                <option value="">All Scripts</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Status</label>
+                            <select class="form-select" id="statusFilter">
+                                <option value="">All Statuses</option>
+                                <option value="Running">Running</option>
+                                <option value="Success">Success</option>
+                                <option value="Failed">Failed</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">User</label>
+                            <select class="form-select" id="userFilter">
+                                <option value="">All Users</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Date</label>
+                            <input type="date" class="form-control" id="dateFilter">
+                        </div>
+                        <div class="col-12 mt-3">
+                            <button type="button" class="btn btn-primary" id="applyFiltersBtn">
+                                <i class="ti ti-filter me-1"></i>Apply Filters
+                            </button>
+                            <button type="button" class="btn btn-secondary" id="resetFiltersBtn">
+                                <i class="ti ti-refresh me-1"></i>Reset Filters
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Main card containing the execution history data table -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Execution History</h3>
+            </div>
+            <div class="card-body border-bottom py-3">
+                <div id="execution-history-list">
+                    <div class="d-flex justify-content-center my-4">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <span class="ms-2">Loading execution history...</span>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer d-flex align-items-center">
+                <nav aria-label="Execution history pagination" class="w-100">
+                    <ul class="pagination m-0 ms-auto flex-wrap justify-content-center" id="historyPagination">
+                        <!-- Pagination will be inserted here dynamically -->
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Main function to load execution history with pagination and filtering
+    function loadExecutionHistory(page = 1, filters = {}) {
+        const queryParams = new URLSearchParams({ page: page });
+        
+        // Add filters to query params for API request
+        if (filters.script_id) queryParams.append('script_id', filters.script_id);
+        if (filters.status) queryParams.append('status', filters.status);
+        if (filters.date) queryParams.append('date', filters.date);
+        if (filters.user_id) queryParams.append('user_id', filters.user_id);
+        
+        fetch(`/api/execution_history?${queryParams.toString()}`)
+            .then(response => response.json())
+            .then(data => {
+                const container = document.getElementById('execution-history-list');
+                container.innerHTML = '';
+                
+                // Show message if no executions found
+                if (data.executions.length === 0) {
+                    container.innerHTML = '<div class="empty"><div class="empty-icon"><i class="ti ti-database-off"></i></div><p class="empty-title">No execution history found</p><p class="empty-subtitle text-muted">Try adjusting your filters or run a script.</p></div>';
+                    document.getElementById('historyPagination').innerHTML = '';
+                    return;
+                }
+                
+                // Create responsive table container
+                const tableResponsive = document.createElement('div');
+                tableResponsive.className = 'table-responsive';
+                
+                // Create table with headers
+                const table = document.createElement('table');
+                table.className = 'table table-vcenter card-table';
+                table.innerHTML = `
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>User</th>
+                            <th>Script</th>
+                            <th>Parameters</th>
+                            <th>Status</th>
+                            <th>Start Time</th>
+                            <th>End Time</th>
+                            <th>Duration</th>
+                            <th>Type</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                `;
+                
+                const tbody = table.querySelector('tbody');
+                
+                // Populate table with execution data
+                data.executions.forEach(execution => {
+                    const row = document.createElement('tr');
+                    
+                    // Define status badge class and icon based on execution status
+                    let statusBadgeClass, statusIcon, statusContent;
+                    
+                    switch(execution.status) {
+                        case 'Success':
+                            statusBadgeClass = 'bg-success';
+                            statusIcon = 'ti-check';
+                            statusContent = `<i class="ti ${statusIcon} me-1"></i>${execution.status}`;
+                            break;
+                        case 'Failed':
+                            statusBadgeClass = 'bg-danger';
+                            statusIcon = 'ti-x';
+                            statusContent = `<i class="ti ${statusIcon} me-1"></i>${execution.status}`;
+                            break;
+                        case 'Running':
+                            statusBadgeClass = 'badge-running'; // Important: This class ensures green styling
+                            statusIcon = 'ti-player-play';
+                            statusContent = `<span class="live-dot"></span>${execution.status}`;
+                            break;
+                        case 'Cancelled':
+                            statusBadgeClass = 'bg-warning';
+                            statusIcon = 'ti-ban';
+                            statusContent = `<i class="ti ${statusIcon} me-1"></i>${execution.status}`;
+                            break;
+                        default:
+                            statusBadgeClass = 'bg-secondary';
+                            statusIcon = 'ti-circle';
+                            statusContent = `<i class="ti ${statusIcon} me-1"></i>${execution.status}`;
+                    }
+                    
+                    // Calculate execution duration
+                    let duration = '-';
+                    if (execution.end_time && execution.start_time) {
+                        const start = new Date(execution.start_time);
+                        const end = new Date(execution.end_time);
+                        const diff = Math.floor((end - start) / 1000);
+                        
+                        const minutes = Math.floor(diff / 60);
+                        const seconds = diff % 60;
+                        duration = `${minutes}m ${seconds}s`;
+                    } else if (execution.status === 'Running' && execution.start_time) {
+                        // For running scripts, calculate time since start
+                        const start = new Date(execution.start_time);
+                        const now = new Date();
+                        const diff = Math.floor((now - start) / 1000);
+                        
+                        const minutes = Math.floor(diff / 60);
+                        const seconds = diff % 60;
+                        duration = `${minutes}m ${seconds}s (running)`;
+                    }
+                    
+                    // Format timestamps
+                    const formatTime = (timeStr) => {
+                        if (!timeStr) return '-';
+                        const date = new Date(timeStr);
+                        return date.toLocaleString();
+                    };
+                    
+                    // Determine execution type (scheduled or manual)
+                    const isScheduled = execution.is_scheduled === 1;
+                    const executionTypeHtml = isScheduled ? 
+                        `<span class="badge" style="background-color: #0d6efd; color: white;"><i class="ti ti-calendar me-1"></i>Scheduled</span>` : 
+                        `<span class="badge" style="background-color: #198754; color: white;"><i class="ti ti-user me-1"></i>Manual</span>`;
+                    
+                    // Create row HTML with all execution details
+                    row.innerHTML = `
+                        <td>${execution.id}</td>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <span class="avatar avatar-xs bg-blue-lt me-1">${execution.username ? execution.username.substring(0, 2).toUpperCase() : '--'}</span>
+                                <span>${execution.username || 'Unknown'}</span>
+                            </div>
+                        </td>
+                        <td class="text-nowrap">${execution.script_name}</td>
+                        <td class="text-nowrap">${formatParameters(execution.parameters)}</td>
+                        <td><span class="badge ${statusBadgeClass}" data-status="${execution.status}">${statusContent}</span></td>
+                        <td class="text-nowrap">${formatTime(execution.start_time)}</td>
+                        <td class="text-nowrap">${formatTime(execution.end_time)}</td>
+                        <td>${duration}</td>
+                        <td>${executionTypeHtml}</td>
+                        <td>
+                            <div class="btn-list flex-nowrap">
+                                <a href="/view_execution/${execution.id}" class="btn btn-sm btn-primary">
+                                    <i class="ti ti-eye me-1"></i>View
+                                </a>
+                                ${execution.status === 'Failed' ? 
+                                `<button class="btn btn-sm btn-warning ai-help" data-execution-id="${execution.id}">
+                                    <i class="ti ti-robot me-1"></i>AI Help
+                                </button>` : ''}
+                            </div>
+                        </td>
+                    `;
+                    
+                    tbody.appendChild(row);
+                });
+                
+                tableResponsive.appendChild(table);
+                container.appendChild(tableResponsive);
+                
+                // Generate and update pagination
+                const pagination = document.getElementById('historyPagination');
+                pagination.innerHTML = '';
+                
+                // Only show pagination if there's more than one page
+                if (data.total_pages > 1) {
+                    // Previous button
+                    const prevLi = document.createElement('li');
+                    prevLi.className = `page-item ${data.current_page === 1 ? 'disabled' : ''}`;
+                    prevLi.innerHTML = `
+                        <a class="page-link" href="#" data-page="${data.current_page - 1}" aria-label="Previous">
+                            <i class="ti ti-chevron-left"></i>
+                        </a>
+                    `;
+                    pagination.appendChild(prevLi);
+                    
+                    // Page numbers with ellipsis for long page lists
+                    // Show first page, current page ±2, and last page
+                    const renderPageLink = (pageNum, isActive = false) => {
+                        const pageLi = document.createElement('li');
+                        pageLi.className = `page-item ${isActive ? 'active' : ''}`;
+                        pageLi.innerHTML = `<a class="page-link" href="#" data-page="${pageNum}">${pageNum}</a>`;
+                        pagination.appendChild(pageLi);
+                    };
+                    
+                    const renderEllipsis = () => {
+                        const ellipsisLi = document.createElement('li');
+                        ellipsisLi.className = 'page-item disabled';
+                        ellipsisLi.innerHTML = `<span class="page-link">...</span>`;
+                        pagination.appendChild(ellipsisLi);
+                    };
+                    
+                    // Logic for displaying pagination with first 9 pages shown
+                    if (data.total_pages <= 10) {
+                        // If 10 or fewer pages, show all
+                        for (let i = 1; i <= data.total_pages; i++) {
+                            renderPageLink(i, i === data.current_page);
+                        }
+                    } else if (data.current_page <= 9) {
+                        // If we're on the first 9 pages, show pages 1-9, then ellipsis, then last page
+                        for (let i = 1; i <= 9; i++) {
+                            renderPageLink(i, i === data.current_page);
+                        }
+                        renderEllipsis();
+                        renderPageLink(data.total_pages, false);
+                    } else if (data.current_page > data.total_pages - 9) {
+                        // If we're on the last 9 pages, show first page, then ellipsis, then last 9 pages
+                        renderPageLink(1, false);
+                        renderEllipsis();
+                        for (let i = data.total_pages - 8; i <= data.total_pages; i++) {
+                            renderPageLink(i, i === data.current_page);
+                        }
+                    } else {
+                        // We're in the middle, show first page, ellipsis, current page and surrounding pages, ellipsis, last page
+                        renderPageLink(1, false);
+                        renderEllipsis();
+                        
+                        // Show current page and 2 pages before/after
+                        const startPage = Math.max(2, data.current_page - 2);
+                        const endPage = Math.min(data.total_pages - 1, data.current_page + 2);
+                        
+                        for (let i = startPage; i <= endPage; i++) {
+                            renderPageLink(i, i === data.current_page);
+                        }
+                        
+                        renderEllipsis();
+                        renderPageLink(data.total_pages, false);
+                    }
+                    
+                    // Next button
+                    const nextLi = document.createElement('li');
+                    nextLi.className = `page-item ${data.current_page === data.total_pages ? 'disabled' : ''}`;
+                    nextLi.innerHTML = `
+                        <a class="page-link" href="#" data-page="${data.current_page + 1}" aria-label="Next">
+                            <i class="ti ti-chevron-right"></i>
+                        </a>
+                    `;
+                    pagination.appendChild(nextLi);
+                    
+                    // Add event listeners to pagination links
+                    document.querySelectorAll('#historyPagination .page-link').forEach(link => {
+                        link.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            const page = parseInt(this.getAttribute('data-page'));
+                            loadExecutionHistory(page, getCurrentFilters());
+                        });
+                    });
+                }
+                
+                // Add event listeners for AI help buttons
+                document.querySelectorAll('.ai-help').forEach(button => {
+                    button.addEventListener('click', function() {
+                        const executionId = this.getAttribute('data-execution-id');
+                        showAiHelp(executionId);
+                    });
+                });
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                document.getElementById('execution-history-list').innerHTML = 
+                    '<div class="alert alert-danger"><i class="ti ti-alert-circle me-2"></i>Error loading execution history</div>';
+            });
+    }
+    
+    // Get current filter values from UI form inputs
+    function getCurrentFilters() {
+        return {
+            script_id: document.getElementById('scriptFilter').value,
+            status: document.getElementById('statusFilter').value,
+            date: document.getElementById('dateFilter').value,
+            user_id: document.getElementById('userFilter')?.value || '' // Include user_id filter
+        };
+    }
+    
+    // Load scripts for filter dropdown
+    function loadScriptsForFilter() {
+        fetch('/api/scripts')
+            .then(response => response.json())
+            .then(data => {
+                const select = document.getElementById('scriptFilter');
+                
+                // Keep the "All Scripts" option and clear the rest
+                select.innerHTML = '<option value="">All Scripts</option>';
+                
+                data.scripts.forEach(script => {
+                    const option = document.createElement('option');
+                    option.value = script.id;
+                    option.textContent = script.name;
+                    select.appendChild(option);
+                });
+            })
+            .catch(error => {
+                console.error('Error loading scripts for filter:', error);
+            });
+    }
+    
+    // Load users for filter dropdown (with permission handling)
+    function loadUsersForFilter() {
+        fetch('/api/users')
+            .then(response => {
+                // Hide filter if no access to user API (non-admin user)
+                if (response.status === 403) {
+                    // Hide user filter for non-admins
+                    const userFilterDiv = document.getElementById('userFilter').closest('.col-md-3');
+                    if (userFilterDiv) {
+                        userFilterDiv.style.display = 'none';
+                    }
+                    return null;
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (!data) return; // Skip if data not received (403)
+                
+                const select = document.getElementById('userFilter');
+                
+                // Keep "All Users" option and clear the rest
+                select.innerHTML = '<option value="">All Users</option>';
+                
+                data.users.forEach(user => {
+                    const option = document.createElement('option');
+                    option.value = user.id;
+                    option.textContent = user.username;
+                    select.appendChild(option);
+                });
+            })
+            .catch(error => {
+                console.error('Error loading users for filter:', error);
+                // Hide filter on error
+                const userFilterDiv = document.getElementById('userFilter').closest('.col-md-3');
+                if (userFilterDiv) {
+                    userFilterDiv.style.display = 'none';
+                }
+            });
+    }
+
+    // Display AI help modal for error analysis
+    function showAiHelp(executionId) {
+        // Create modal if it doesn't exist
+        if (!document.getElementById('aiHelpModal')) {
+            const modalDiv = document.createElement('div');
+            modalDiv.className = 'modal modal-blur fade';
+            modalDiv.id = 'aiHelpModal';
+            modalDiv.tabIndex = '-1';
+            modalDiv.setAttribute('aria-labelledby', 'aiHelpModalLabel');
+            modalDiv.setAttribute('aria-hidden', 'true');
+            
+            modalDiv.innerHTML = `
+                <div class="modal-dialog modal-lg modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="aiHelpModalLabel">
+                                <i class="ti ti-robot me-2 text-warning"></i>AI Error Analysis
+                            </h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div id="aiHelpContent">
+                                <div class="d-flex justify-content-center my-4">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Loading AI analysis...</span>
+                                    </div>
+                                    <span class="ms-2">Getting AI assistance for this error...</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modalDiv);
+        }
+        
+        // Show the modal
+        const modal = new bootstrap.Modal(document.getElementById('aiHelpModal'));
+        modal.show();
+        
+        // Get AI help for the execution
+        fetch(`/api/ai_help/${executionId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Handle case when AI assistance is disabled
+                    if (data.ai_help && data.ai_help.startsWith("AI assistance is disabled")) {
+                        document.getElementById('aiHelpContent').innerHTML = `
+                            <div class="alert alert-info">
+                                <i class="ti ti-info-circle me-2"></i>${data.ai_help}
+                            </div>
+                            <div class="text-center mt-3">
+                                <a href="/settings" class="btn btn-outline-primary">
+                                    <i class="ti ti-settings me-1"></i>Go to Settings
+                                </a>
+                            </div>
+                        `;
+                    } else {
+                        // Standard analysis output
+                        document.getElementById('aiHelpContent').innerHTML = `
+                            <div class="mb-3">
+                                <h4 class="mb-3">Error Output:</h4>
+                                <pre class="bg-dark text-light p-3 rounded">${data.error}</pre>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <h4 class="mb-3">AI Analysis:</h4>
+                                <div class="card">
+                                    <div class="card-body">
+                                        ${data.ai_help}
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            ${data.solution ? `
+                            <div>
+                                <h4 class="mb-3">Suggested Solution:</h4>
+                                <div class="card card-body bg-success-lt">
+                                    ${data.solution}
+                                </div>
+                            </div>` : ''}
+                        `;
+                    }
+                } else {
+                    document.getElementById('aiHelpContent').innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="ti ti-alert-circle me-2"></i>${data.message || 'Error getting AI help'}
+                        </div>
+                    `;
+                }
+            })
+            .catch(error => {
+                console.error('Error getting AI help:', error);
+                document.getElementById('aiHelpContent').innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="ti ti-alert-circle me-2"></i>An error occurred while getting AI assistance. Please try again later.
+                    </div>
+                `;
+            });
+    }
+    
+    /**
+     * Format parameters for display in a compact way
+     * Shows a badge with the number of parameters and tooltip with details
+     * @param {string} parametersJSON - JSON string of parameters
+     * @return {string} - Formatted HTML for parameters display
+     */
+     function formatParameters(parametersJSON) {
+        if (!parametersJSON || parametersJSON === 'null') {
+            return '<span class="text-muted">None</span>';
+        }
+        
+        try {
+            const parameters = JSON.parse(parametersJSON);
+            const paramCount = Object.keys(parameters).length;
+            
+            if (paramCount === 0) {
+                return '<span class="text-muted">None</span>';
+            }
+            
+            // Create string with parameters for tooltip
+            const tooltipContent = Object.entries(parameters)
+                .map(([key, value]) => `${key}=${value}`)
+                .join('\n');
+            
+            // Add title attribute with full parameter list
+            return `<span class="badge bg-secondary" title="${tooltipContent}">+${paramCount}</span>`;
+        } catch (e) {
+            console.error('Error parsing parameters:', e);
+            return '<span class="text-danger">Error</span>';
+        }
+    }
+
+    // Initialize page when DOM is fully loaded
+    document.addEventListener('DOMContentLoaded', function() {
+        // Load initial data
+        loadExecutionHistory();
+        loadScriptsForFilter();
+        loadUsersForFilter();
+        
+        // Add event listeners for filter buttons
+        document.getElementById('applyFiltersBtn').addEventListener('click', function() {
+            loadExecutionHistory(1, getCurrentFilters());
+        });
+        
+        document.getElementById('resetFiltersBtn').addEventListener('click', function() {
+            document.getElementById('scriptFilter').value = '';
+            document.getElementById('statusFilter').value = '';
+            document.getElementById('dateFilter').value = '';
+            loadExecutionHistory();
+        });
+        
+        // Initialize Socket.IO for real-time updates
+        const socket = io();
+        
+        // Listen for script status updates
+        socket.on('script_status_update', function(data) {
+            // Reload history if on page 1 or if filters match the updated script
+            const filters = getCurrentFilters();
+            if (
+                !filters.script_id || filters.script_id === data.script_id.toString() ||
+                !filters.status || filters.status === data.status
+            ) {
+                loadExecutionHistory(1, filters);
+            }
+        });
+        
+        // Enhanced functionality for filter header
+        const filtersHeader = document.getElementById('filtersHeader');
+        const filtersContent = document.getElementById('filtersContent');
+        const filtersIcon = document.getElementById('filtersIcon');
+        
+        if (filtersHeader) {
+            filtersHeader.addEventListener('click', function(event) {
+                // Check that click wasn't on the icon button
+                // (to prevent double triggering)
+                if (!event.target.closest('#toggleFiltersBtn')) {
+                    const collapse = new bootstrap.Collapse(filtersContent);
+                    collapse.toggle();
+                    
+                    // Animate the icon
+                    filtersIcon.classList.toggle('rotated');
+                }
+            });
+        }
+        
+        // Updated handler for icon button
+        const toggleFiltersBtn = document.getElementById('toggleFiltersBtn');
+        if (toggleFiltersBtn) {
+            // Use stopPropagation to prevent event bubbling
+            // (to prevent the filtersHeader handler from firing)
+            toggleFiltersBtn.addEventListener('click', function(event) {
+                event.stopPropagation();
+                
+                // Animate the icon
+                filtersIcon.classList.toggle('rotated');
+            });
+        }
+    });
+</script>
+{% endblock %}

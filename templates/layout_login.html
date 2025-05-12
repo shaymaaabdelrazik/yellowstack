@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - AWS Scripts Manager</title>
+    
+    <!-- Tabler Core CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta19/dist/css/tabler.min.css">
+    
+    <!-- Tabler Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.30.0/tabler-icons.min.css">
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    
+    <!-- Favicon -->
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png') }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='favicon-32x32.png') }}">
+    <link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('static', filename='favicon-16x16.png') }}">
+    
+    <style>
+        body {
+            background-color: #f5f7fb;
+        }
+        
+        .yellowstack-logo {
+            background-color: #E3F2FD;
+            color: #1565C0;
+            padding: 8px 16px;
+            border-radius: 4px;
+            display: inline-block;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+            text-align: center;
+            min-width: 200px;
+            border: 1px solid rgba(0,0,0,0.05);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .logo-main {
+            font-size: 24px;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+            display: block;
+            line-height: 1.2;
+            font-family: 'Roboto', sans-serif;
+        }
+        
+        .logo-subtext {
+            font-size: 14px;
+            font-weight: 400;
+            opacity: 0.7;
+            display: block;
+            margin-top: 4px;
+            font-family: 'Roboto', sans-serif;
+        }
+    </style>
+    
+    <!-- CSRF-Token Meta tag -->
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    
+    <!-- Additional styles for specific pages -->
+    {% block head %}{% endblock %}
+</head>
+<body class="theme-light">
+    <!-- Main Content -->
+    {% block content %}{% endblock %}
+
+    <!-- Tabler Core JS -->
+    <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta19/dist/js/tabler.min.js"></script>
+    
+    <!-- CSRF Protection -->
+    <script src="{{ url_for('static', filename='js/csrf-protection.js') }}"></script>
+    
+    <!-- Scripts for specific pages -->
+    {% block scripts %}{% endblock %}
+</body>
+</html>

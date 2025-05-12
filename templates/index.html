@@ -1,0 +1,1330 @@
+{% extends "layout.html" %}
+
+{% block head %}
+<!-- Connect additional Chart.js plugins for beautiful graphs -->
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+<!-- Favicon and icons for different devices -->
+<link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+<link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='apple-touch-icon.png') }}">
+<link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='favicon-32x32.png') }}">
+<link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('static', filename='favicon-16x16.png') }}">
+<link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+
+<style>
+  /* Styles for modern graph */
+  .stats-card {
+    border-radius: 12px;
+    overflow: hidden;
+    border: none;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+    position: relative;
+  }
+  
+  .stats-card .card-header {
+    background-color: white;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    padding: 16px 20px;
+  }
+  
+  .stats-card .card-body {
+    padding: 20px;
+  }
+  
+  .period-btn {
+    font-weight: 500;
+    padding: 6px 12px;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+  }
+  
+  .period-btn.active {
+    background-color: #206bc4;
+    color: white;
+    box-shadow: 0 2px 8px rgba(32, 107, 196, 0.3);
+  }
+  
+  .period-btn:not(.active) {
+    background-color: #f5f7fb;
+    color: #4a5568;
+    border: 1px solid #e2e8f0;
+  }
+  
+  .period-btn:not(.active):hover {
+    background-color: #edf2f7;
+  }
+  
+  #execution-chart-container {
+    height: 320px;
+    position: relative;
+  }
+  
+  .chart-legend {
+    display: flex;
+    justify-content: center;
+    margin-top: 16px;
+    gap: 20px;
+    font-size: 14px;
+  }
+  
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  .legend-color {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+  }
+  
+  /* Statistics indicators above the graph */
+  .stats-indicators {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 24px;
+  }
+  
+  .stat-indicator {
+    flex: 1;
+    padding: 16px;
+    border-radius: 10px;
+    text-align: center;
+    margin: 0 8px;
+  }
+  
+  .stat-indicator.success {
+    background-color: rgba(47, 179, 68, 0.1);
+    color: #2fb344;
+  }
+  
+  .stat-indicator.failed {
+    background-color: rgba(214, 57, 57, 0.1);
+    color: #d63939;
+  }
+  
+  .stat-indicator.running {
+    background-color: rgba(32, 107, 196, 0.1);
+    color: #206bc4;
+  }
+  
+  .stat-number {
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1.2;
+    transition: all 0.3s ease;
+  }
+  
+  .stat-number.changing {
+    animation: pulse-number 1s;
+  }
+  
+  .stat-label {
+    font-size: 14px;
+    opacity: 0.8;
+  }
+  
+  /* Live update indicator for dashboard */
+  .live-update-indicator {
+    display: flex;
+    align-items: center;
+    font-size: 0.85rem;
+    color: #666;
+    margin-left: auto;
+    margin-right: 12px;
+  }
+
+  .live-update-indicator .indicator-dot {
+    height: 8px;
+    width: 8px;
+    background-color: #28a745;
+    border-radius: 50%;
+    display: inline-block;
+    animation: pulse 1.5s infinite;
+    margin-right: 6px;
+  }
+
+  /* Row highlight animation for new/updated executions */
+  @keyframes highlight-row {
+    0% { background-color: rgba(32, 107, 196, 0.2); }
+    100% { background-color: transparent; }
+  }
+
+  tr.highlight-update {
+    animation: highlight-row 2s ease-out;
+  }
+
+  /* Badge animation for changing status */
+  @keyframes badge-update {
+    0% { transform: scale(1.1); box-shadow: 0 0 0 rgba(33, 150, 243, 0.4); }
+    100% { transform: scale(1); box-shadow: 0 0 0 rgba(33, 150, 243, 0); }
+  }
+
+  .badge.status-changed {
+    animation: badge-update 1s ease-out;
+  }
+
+  /* Enhanced stat counter animations */
+  @keyframes pulse-number {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+  }
+
+  /* Live stats section indication */
+  .stats-card .live-badge {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    font-size: 0.75rem;
+    display: flex;
+    align-items: center;
+    background-color: rgba(40, 167, 69, 0.1);
+    color: #28a745;
+    padding: 4px 8px;
+    border-radius: 12px;
+    z-index: 10;
+  }
+
+  .stats-card .live-badge .live-dot {
+    height: 6px;
+    width: 6px;
+    background-color: #28a745;
+    border-radius: 50%;
+    display: inline-block;
+    animation: pulse 1.5s infinite;
+    margin-right: 4px;
+  }
+  
+  /* Pulsation animation */
+  @keyframes pulse {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.5); opacity: 0.5; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="bg-light p-4 rounded-3">
+        <h2>Yellowstack Dashboard</h2>
+        <p class="mb-0">AWS Python scripts with ease.</p>
+      </div>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-12">
+      <div class="d-flex justify-content-between align-items-center ms-2 mb-3">
+        <div class="live-updates-badge">
+          <span class="better-pulse-dot"></span> Live Updates
+        </div>
+        <div class="dropdown">
+          <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="refreshIntervalDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="ti ti-refresh me-1"></i><span id="currentRefreshInterval">Refresh: 30s</span>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="refreshIntervalDropdown">
+            <li><a class="dropdown-item refresh-interval-item" href="#" data-interval="60000">1 minute</a></li>
+            <li><a class="dropdown-item refresh-interval-item" href="#" data-interval="180000">3 minutes</a></li>
+            <li><a class="dropdown-item refresh-interval-item" href="#" data-interval="300000">5 minutes</a></li>
+            <li><a class="dropdown-item refresh-interval-item" href="#" data-interval="600000">10 minutes</a></li>
+            <li><a class="dropdown-item refresh-interval-item" href="#" data-interval="900000">15 minutes</a></li>
+            <li><a class="dropdown-item refresh-interval-item" href="#" data-interval="1800000">30 minutes</a></li>
+            <li><a class="dropdown-item refresh-interval-item" href="#" data-interval="3600000">60 minutes</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item refresh-interval-item active" href="#" data-interval="30000">30 seconds (default)</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="card stats-card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h3 class="card-title mb-0">Execution Statistics</h3>
+          <div class="btn-group" role="group" aria-label="Statistics Period">
+            <button type="button" class="btn btn-sm period-btn active" data-days="7" id="stats-7d">7 Days</button>
+            <button type="button" class="btn btn-sm period-btn" data-days="14" id="stats-14d">14 Days</button>
+            <button type="button" class="btn btn-sm period-btn" data-days="30" id="stats-30d">30 Days</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <!-- General statistics indicators -->
+          <div class="stats-indicators" id="stats-indicators">
+            <div class="stat-indicator success">
+              <div class="stat-number" id="success-count">-</div>
+              <div class="stat-label">Successful</div>
+            </div>
+            <div class="stat-indicator failed">
+              <div class="stat-number" id="failed-count">-</div>
+              <div class="stat-label">Failed</div>
+            </div>
+            <div class="stat-indicator running">
+              <div class="stat-number" id="running-count">-</div>
+              <div class="stat-label">Running</div>
+            </div>
+            <div class="stat-indicator" style="background-color: rgba(247, 159, 0, 0.1); color: #f59f00;">
+              <div class="stat-number" id="cancelled-count">-</div>
+              <div class="stat-label">Cancelled</div>
+            </div>
+          </div>
+          
+          <!-- Chart container -->
+          <div id="execution-chart-container">
+            <div class="d-flex justify-content-center align-items-center h-100">
+              <div class="spinner-border text-primary me-2" role="status"></div>
+              <span>Loading chart data...</span>
+            </div>
+          </div>
+          
+          <!-- Chart legend -->
+          <div class="chart-legend">
+            <div class="legend-item">
+              <div class="legend-color" style="background-color: #2fb344;"></div>
+              <span>Success</span>
+            </div>
+            <div class="legend-item">
+              <div class="legend-color" style="background-color: #d63939;"></div>
+              <span>Failed</span>
+            </div>
+            <div class="legend-item">
+              <div class="legend-color" style="background-color: #206bc4;"></div>
+              <span>Running</span>
+            </div>
+            <div class="legend-item">
+              <div class="legend-color" style="background-color: #f59f00;"></div>
+              <span>Cancelled</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    /* Compact badge with improved pulsing dot */
+    .live-updates-badge {
+      display: inline-block;
+      background-color: #e6f4e6;
+      border-radius: 4px;
+      padding: 2px 8px;
+      font-size: 14px;
+    }
+    
+    .better-pulse-dot {
+      position: relative;
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      background-color: #22c55e;
+      border-radius: 50%;
+      margin-right: 5px;
+      top: -1px;
+      box-shadow: 0 0 0 0 rgba(34, 197, 94, 1);
+      transform: scale(1);
+      animation: better-pulse 2s infinite;
+    }
+    
+    @keyframes better-pulse {
+      0% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+      }
+      
+      70% {
+        transform: scale(1);
+        box-shadow: 0 0 0 7px rgba(34, 197, 94, 0);
+      }
+      
+      100% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
+      }
+    }
+    
+    /* Refresh Interval Dropdown Styles */
+    #refreshIntervalDropdown {
+      font-size: 0.825rem;
+      padding: 0.35rem 0.75rem;
+      background-color: #f8f9fa;
+      border-color: #dee2e6;
+    }
+    
+    #refreshIntervalDropdown:hover {
+      background-color: #e9ecef;
+    }
+    
+    .dropdown-menu .refresh-interval-item {
+      font-size: 0.875rem;
+      padding: 0.4rem 1.2rem;
+    }
+    
+    .dropdown-menu .refresh-interval-item.active {
+      background-color: #206bc4;
+      color: white;
+    }
+    
+    .dropdown-menu .refresh-interval-item:hover:not(.active) {
+      background-color: #f0f2f5;
+    }
+  </style>
+
+<div class="mt-4">
+  <div class="d-flex align-items-center">
+    <h3>Recent Script Executions</h3>
+  </div>
+  <div id="recent-executions" class="mt-3">
+    <div class="d-flex align-items-center">
+      <div class="spinner-border me-2" role="status"><span class="visually-hidden">Loading...</span></div>
+      <span>Loading recent executions...</span>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  console.log('Initial Chart.js check:', typeof Chart);
+  // Attempt to load Chart.js directly if it's not available
+  if (typeof Chart === 'undefined') {
+    console.warn('Chart.js not found at page load, loading directly...');
+    document.write('<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"><\/script>');
+  }
+  // Declare a variable to store the chart instance
+  let executionChart = null;
+  
+  // Loading data when the page loads
+  document.addEventListener('DOMContentLoaded', function() {
+    console.log("Document loaded, initializing dashboard...");
+    
+    // Check Chart.js availability
+    if (typeof Chart === 'undefined') {
+      console.warn('Chart.js not loaded! Will try to load it later...');
+      document.getElementById('execution-chart-container').innerHTML = `
+        <div class="alert alert-warning">
+          <i class="ti ti-alert-circle me-2"></i> Waiting for Chart.js to load...
+        </div>
+      `;
+    }
+    
+    // Load chart data
+    loadExecutionStats(7); // Default - 7 days
+    
+    // Configure period selection buttons
+    document.querySelectorAll('.period-btn').forEach(button => {
+      button.addEventListener('click', function() {
+        // Update button states
+        document.querySelectorAll('.period-btn').forEach(btn => {
+          btn.classList.remove('active');
+        });
+        this.classList.add('active');
+        
+        // Load data for selected period
+        const days = parseInt(this.getAttribute('data-days'));
+        loadExecutionStats(days);
+      });
+    });
+    
+    // Load recent executions
+    loadRecentExecutions();
+    
+    // Initialize Socket.IO for real-time updates
+    initializeDashboardSocket();
+    
+    // Add styles for counter animations
+    addCounterAnimationStyles();
+  });
+  
+  /**
+   * Checks for Chart.js availability and loads it if necessary
+   * @return {Promise} - Promise that resolves when Chart.js is available
+   */
+  function ensureChartJsLoaded() {
+    if (typeof Chart === 'undefined') {
+      console.log('Chart.js not found, attempting to load dynamically');
+      return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = "https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js";
+        script.onload = () => {
+          console.log('Chart.js loaded dynamically');
+          resolve();
+        };
+        script.onerror = () => {
+          console.error('Failed to load Chart.js dynamically');
+          reject(new Error('Failed to load Chart.js'));
+        };
+        document.head.appendChild(script);
+      });
+    }
+    return Promise.resolve();
+  }
+  
+  /**
+   * Displays data as a simple table if chart creation fails
+   * @param {HTMLElement} container - container for display
+   * @param {Array} data - data to display
+   */
+  function showSimpleDataView(container, data) {
+    container.innerHTML = '<h5>Chart data (fallback view):</h5>';
+    const table = document.createElement('table');
+    table.className = 'table table-sm';
+    
+    // Create headers
+    const thead = document.createElement('thead');
+    thead.innerHTML = `<tr>
+      <th>Date</th>
+      <th>Success</th>
+      <th>Failed</th>
+      <th>Running</th>
+    </tr>`;
+    table.appendChild(thead);
+    
+    // Add data rows
+    const tbody = document.createElement('tbody');
+    data.forEach(item => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${new Date(item.date).toLocaleDateString()}</td>
+        <td>${item.Success || 0}</td>
+        <td>${item.Failed || 0}</td>
+        <td>${item.Running || 0}</td>
+        <td>${item.Cancelled || 0}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    container.appendChild(table);
+  }
+  
+  /**
+   * Load execution statistics for chart
+   * @param {number} days - Number of days to display statistics for
+   */
+   function loadExecutionStats(days) {
+    console.log(`Loading statistics for ${days} days`);
+    
+    fetch(`/api/execution_stats?days=${days}`)
+      .then(response => {
+        console.log('Server response:', response);
+        return response.json();
+      })
+      .then(data => {
+        console.log('Received data:', data);
+        if (data.success) {
+          updateStatCounters(data.data);
+          renderModernChart(data.data);
+        } else {
+          throw new Error(data.message || 'Unknown error');
+        }
+      })
+      .catch(error => {
+        console.error('Error loading data:', error);
+      });
+  }
+  
+  /**
+   * Update statistics counters with animation
+   * @param {Array} data - Statistics data
+   */
+   function updateStatCounters(data) {
+      let totalSuccess = 0;
+      let totalFailed = 0;
+      let totalRunning = 0;
+      let totalCancelled = 0;
+      
+      // Sum values for each status
+      data.forEach(item => {
+        totalSuccess += item.Success || 0;
+        totalFailed += item.Failed || 0;
+        totalRunning += item.Running || 0;
+        totalCancelled += item.Cancelled || 0;
+      });
+      
+      // Animate counter updates
+      animateCounter('success-count', totalSuccess);
+      animateCounter('failed-count', totalFailed);
+      animateCounter('running-count', totalRunning);
+      animateCounter('cancelled-count', totalCancelled);
+    }
+  
+  /**
+   * Function for counter change animation
+   * @param {string} elementId - ID of counter element
+   * @param {number} newValue - New counter value
+   */
+  function animateCounter(elementId, newValue) {
+    const element = document.getElementById(elementId);
+    if (!element) return;
+    
+    const currentValue = parseInt(element.textContent) || 0;
+    
+    // If values match, no need to animate
+    if (currentValue === newValue) return;
+    
+    // If difference is small, animate quickly
+    const diff = Math.abs(newValue - currentValue);
+    const duration = Math.min(1000, Math.max(500, diff * 100)); // Between 500ms and 1000ms
+    
+    // Highlight element on change
+    element.classList.add('changing');
+    
+    // Animation variables
+    let startTime = null;
+    
+    function step(timestamp) {
+      if (!startTime) startTime = timestamp;
+      const progress = Math.min((timestamp - startTime) / duration, 1);
+      
+      // Calculate current value using easing function
+      const currentVal = Math.floor(currentValue + (newValue - currentValue) * easeOutQuad(progress));
+      element.textContent = currentVal;
+      
+      if (progress < 1) {
+        window.requestAnimationFrame(step);
+      } else {
+        // Animation complete
+        element.textContent = newValue;
+        element.classList.remove('changing');
+      }
+    }
+    
+    // Start animation
+    window.requestAnimationFrame(step);
+  }
+  
+  /**
+   * Easing function for smoother animation
+   * @param {number} t - Animation progress (0-1)
+   * @return {number} - Eased value
+   */
+  function easeOutQuad(t) {
+    return t * (2 - t);
+  }
+  
+  /**
+   * Render modern chart with smooth updates
+   * @param {Array} data - Data for chart
+   */
+   async function renderModernChart(data) {
+    console.log('Input data for chart:', data);
+    
+    // Check for data availability
+    if (!data || !Array.isArray(data) || data.length === 0) {
+      console.warn('No data for chart');
+      const container = document.getElementById('execution-chart-container');
+      
+      if (container) {
+        container.innerHTML = `
+          <div class="alert alert-warning">
+            <i class="ti ti-info-circle me-2"></i> No data available for chart display
+          </div>
+        `;
+      }
+      return;
+    }
+    
+    try {
+      // Ensure Chart.js is loaded
+      await ensureChartJsLoaded();
+      
+      const container = document.getElementById('execution-chart-container');
+      if (!container) {
+        throw new Error('Chart container not found');
+      }
+
+      // Update existing chart if possible
+      if (executionChart) {
+        try {
+          executionChart.data.labels = data.map(item => {
+            const date = new Date(item.date);
+            return `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}`;
+          });
+          executionChart.data.datasets[0].data = data.map(item => item.Success || 0);
+          executionChart.data.datasets[1].data = data.map(item => item.Failed || 0);
+          executionChart.data.datasets[2].data = data.map(item => item.Running || 0);
+          executionChart.data.datasets[3].data = data.map(item => item.Cancelled || 0); // Add this line
+          executionChart.update({ duration: 800, easing: 'easeOutQuart' });
+          return;
+        } catch (err) {
+          console.warn('Failed to update chart, recreating:', err);
+          executionChart.destroy();
+          executionChart = null;
+        }
+      }
+
+      // Prepare container and canvas
+      container.innerHTML = '';
+      const canvas = document.createElement('canvas');
+      canvas.id = 'executionStatsChart';
+      container.appendChild(canvas);
+
+      // Wait for next frame for rendering
+      await new Promise(resolve => requestAnimationFrame(resolve));
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        throw new Error('Failed to get 2D canvas context');
+      }
+
+      // Create gradients
+      const createGradient = (color1, color2) => {
+        const grad = ctx.createLinearGradient(0, 0, 0, 400);
+        grad.addColorStop(0, color1);
+        grad.addColorStop(1, color2);
+        return grad;
+      };
+
+      // Prepare data with formatted dates
+      const formattedData = data.map(item => {
+        const date = new Date(item.date);
+        return {
+          ...item,
+          formattedDate: `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}`
+        };
+      });
+
+      // Chart settings
+      const chartConfig = {
+        type: 'bar',
+        data: {
+          labels: formattedData.map(item => item.formattedDate),
+          datasets: [
+            {
+              label: 'Success',
+              data: formattedData.map(item => item.Success || 0),
+              backgroundColor: createGradient('rgba(47,179,68,0.8)', 'rgba(47,179,68,0.2)'),
+              borderColor: '#2fb344',
+              borderWidth: 1,
+              borderRadius: 4,
+              barPercentage: 0.6,
+              categoryPercentage: 0.8
+            },
+            {
+              label: 'Failed',
+              data: formattedData.map(item => item.Failed || 0),
+              backgroundColor: createGradient('rgba(214,57,57,0.8)', 'rgba(214,57,57,0.2)'),
+              borderColor: '#d63939',
+              borderWidth: 1,
+              borderRadius: 4,
+              barPercentage: 0.6,
+              categoryPercentage: 0.8
+            },
+            {
+              label: 'Running',
+              data: formattedData.map(item => item.Running || 0),
+              backgroundColor: createGradient('rgba(32,107,196,0.8)', 'rgba(32,107,196,0.2)'),
+              borderColor: '#206bc4',
+              borderWidth: 1,
+              borderRadius: 4,
+              barPercentage: 0.6,
+              categoryPercentage: 0.8
+            },
+            {
+              label: 'Cancelled',
+              data: formattedData.map(item => item.Cancelled || 0),
+              backgroundColor: createGradient('rgba(247,159,0,0.8)', 'rgba(247,159,0,0.2)'),
+              borderColor: '#f59f00',
+              borderWidth: 1,
+              borderRadius: 4,
+              barPercentage: 0.6,
+              categoryPercentage: 0.8
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { 
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                title: function(tooltipItems) {
+                  const index = tooltipItems[0].dataIndex;
+                  const fullDate = new Date(data[index].date);
+                  return fullDate.toLocaleDateString('ru-RU', { 
+                    weekday: 'long', 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                  });
+                }
+              }
+            }
+          },
+          scales: {
+            x: { 
+              grid: { display: false },
+              ticks: { color: '#666' }
+            },
+            y: {
+              beginAtZero: true,
+              grid: { 
+                color: 'rgba(0, 0, 0, 0.05)',
+                drawBorder: false 
+              },
+              ticks: { 
+                precision: 0,
+                color: '#666'
+              }
+            }
+          },
+          animation: {
+            duration: 1000,
+            easing: 'easeOutQuart'
+          }
+        }
+      };
+
+      // Create chart
+      executionChart = new Chart(ctx, chartConfig);
+      console.log('Chart successfully created');
+
+    } catch (error) {
+      console.error('Error creating chart:', error);
+      
+      const container = document.getElementById('execution-chart-container');
+      if (container) {
+        container.innerHTML = `
+          <div class="alert alert-danger">
+            <i class="ti ti-alert-circle me-2"></i> Error creating chart: ${error.message || error}
+          </div>
+        `;
+        
+        // Show fallback display if function is defined
+        if (typeof showSimpleDataView === 'function') {
+          showSimpleDataView(container, data);
+        }
+      }
+    }
+  }
+  
+  /**
+   * Load recent executions with real-time update support
+   */
+   function loadRecentExecutions() {
+    fetch('/api/recent_executions')
+        .then(response => response.json())
+        .then(data => {
+            const container = document.getElementById('recent-executions');
+            
+            // Save scroll position if table exists
+            let scrollTop = 0;
+            const existingTable = container.querySelector('table');
+            if (existingTable) {
+                const tableContainer = existingTable.parentElement;
+                if (tableContainer && tableContainer.scrollTop) {
+                    scrollTop = tableContainer.scrollTop;
+                }
+            }
+            
+            // Clear container
+            container.innerHTML = '';
+            
+            if (!data.executions.length) {
+                container.innerHTML = '<p class="text-muted">No recent executions found.</p>';
+                return;
+            }
+            
+            // Create scrollable container
+            let tableContainer = document.createElement('div');
+            tableContainer.className = 'table-responsive';
+            tableContainer.style.maxHeight = '400px'; // Limit height
+            
+            const table = document.createElement('table');
+            table.className = 'table table-hover';
+            table.innerHTML = `
+                <thead>
+                    <tr>
+                        <th>User</th>
+                        <th>Script</th>
+                        <th>Status</th>
+                        <th>Start Time</th>
+                        <th>Type</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            `;
+            
+            const tbody = table.querySelector('tbody');
+            
+            data.executions.forEach(execution => {
+                const row = document.createElement('tr');
+                // Add data-execution-id for easy updates
+                row.setAttribute('data-execution-id', execution.id);
+                
+                let statusBadgeClass, statusIcon, statusContent;
+                
+                switch (execution.status) {
+                    case 'Success':
+                        statusBadgeClass = 'bg-success';
+                        statusIcon = 'ti-check';
+                        statusContent = `<i class="ti ${statusIcon} me-1"></i>${execution.status}`;
+                        break;
+                    case 'Failed':
+                        statusBadgeClass = 'bg-danger';
+                        statusIcon = 'ti-x';
+                        statusContent = `<i class="ti ${statusIcon} me-1"></i>${execution.status}`;
+                        break;
+                    case 'Running':
+                        statusBadgeClass = 'badge-running';
+                        statusIcon = 'ti-player-play';
+                        statusContent = `<span class="live-dot"></span>${execution.status}`;
+                        break;
+                    case 'Cancelled':
+                        statusBadgeClass = 'bg-warning';
+                        statusIcon = 'ti-ban';
+                        statusContent = `<i class="ti ${statusIcon} me-1"></i>${execution.status}`;
+                        break;
+                    default:
+                        statusBadgeClass = 'bg-secondary';
+                        statusIcon = 'ti-circle';
+                        statusContent = `<i class="ti ${statusIcon} me-1"></i>${execution.status}`;
+                }
+                
+                // Format time
+                const startTime = new Date(execution.start_time);
+                const formattedTime = startTime.toLocaleString();
+                
+                // Determine launch type with exact colors as shown in screenshots
+                const isScheduled = execution.is_scheduled === 1;
+                
+                // Use the same classes and structure as seen in the Dashboard screenshot
+                const executionTypeHtml = isScheduled ? 
+                    `<span class="badge scheduled-badge" style="background-color: #0d6efd; color: white;"><i class="ti ti-calendar me-1"></i>Scheduled</span>` : 
+                    `<span class="badge manual-badge" style="background-color: #198754; color: white;"><i class="ti ti-user me-1"></i>Manual</span>`;
+                
+                // Create action buttons
+                const viewDetailsBtn = `
+                    <a href="/view_execution/${execution.id}" class="btn btn-sm btn-outline-primary">
+                        <i class="ti ti-eye me-1"></i>View Details
+                    </a>
+                `;
+                
+                const cancelBtn = execution.status === 'Running' ? `
+                    <button type="button" class="btn btn-sm btn-outline-danger ms-1 cancel-execution-btn" 
+                            data-execution-id="${execution.id}">
+                        <i class="ti ti-x me-1"></i>Cancel
+                    </button>
+                ` : '';
+                
+                row.innerHTML = `
+                    <td>
+                        <div class="d-flex align-items-center">
+                            <span class="avatar avatar-xs bg-blue-lt me-1">${execution.username ? execution.username.substring(0, 2).toUpperCase() : '--'}</span>
+                            <span>${execution.username || 'Unknown'}</span>
+                        </div>
+                    </td>
+                    <td class="text-nowrap">${execution.script_name}</td>
+                    <td><span class="badge ${statusBadgeClass}">${statusContent}</span></td>
+                    <td class="text-nowrap">${formattedTime}</td>
+                    <td>${executionTypeHtml}</td>
+                    <td>
+                        ${viewDetailsBtn}
+                        ${cancelBtn}
+                    </td>
+                `;
+                
+                tbody.appendChild(row);
+            });
+            
+            tableContainer.appendChild(table);
+            container.appendChild(tableContainer);
+            
+            // Restore scroll position
+            if (scrollTop > 0) {
+                tableContainer.scrollTop = scrollTop;
+            }
+            
+            // Add event listeners for cancel buttons
+            document.querySelectorAll('.cancel-execution-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    const executionId = this.getAttribute('data-execution-id');
+                    cancelExecution(executionId);
+                });
+            });
+        })
+        .catch(error => {
+            console.error('Error loading executions:', error);
+            document.getElementById('recent-executions').innerHTML =
+                '<div class="alert alert-danger">Error loading recent executions</div>';
+        });
+}
+  
+  /**
+   * Update specific execution row when its status changes
+   * @param {number} executionId - Execution ID to update
+   * @param {string} newStatus - New status
+   */
+  function updateExecutionRow(executionId, newStatus) {
+    // Find row with this execution id
+    const row = document.querySelector(`tr[data-execution-id="${executionId}"]`);
+    if (!row) return;
+    
+    // Get cell with status badge
+    const statusCell = row.querySelector('td:nth-child(3)');
+    if (!statusCell) return;
+    
+    // Current status
+    const currentStatus = statusCell.textContent.trim();
+    
+    // If status hasn't changed, no need to update
+    if (currentStatus === newStatus) return;
+    
+    // Determine badge classes and icons based on status
+    let statusBadgeClass, statusIcon;
+    
+    switch (newStatus) {
+      case 'Success':
+        statusBadgeClass = 'bg-success';
+        statusIcon = 'ti-check';
+        break;
+      case 'Failed':
+        statusBadgeClass = 'bg-danger';
+        statusIcon = 'ti-x';
+        break;
+      case 'Running':
+        statusBadgeClass = 'badge-running';
+        statusIcon = 'ti-player-play';
+        break;
+      default:
+        statusBadgeClass = 'bg-secondary';
+        statusIcon = 'ti-circle';
+    }
+    
+    // Update status badge
+    statusCell.innerHTML = `<span class="badge ${statusBadgeClass} status-changed"><i class="ti ${statusIcon} me-1"></i>${newStatus}</span>`;
+    
+    // Add row highlight animation
+    row.classList.add('highlight-update');
+    
+    // Remove highlight class after animation completes
+    setTimeout(() => {
+      row.classList.remove('highlight-update');
+    }, 2000);
+  }
+  
+  /**
+   * Initialize Socket.IO for dashboard updates
+   */
+  function initializeDashboardSocket() {
+    console.log("Initializing dashboard socket connection...");
+    
+    // Use global socket if already initialized in main.js
+    const socket = window.socket || io({
+      withCredentials: true,
+      transportOptions: {
+        polling: {
+          extraHeaders: {
+            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+          }
+        }
+      }
+    });
+    
+    // Save socket globally if it doesn't exist yet
+    if (!window.socket) {
+      window.socket = socket;
+    }
+    
+    socket.on('connect', () => {
+      console.log('Socket.IO connected for dashboard');
+    });
+    
+    socket.on('connect_error', (err) => {
+      console.error('Socket.IO connection error:', err);
+    });
+    
+    socket.on('script_status_update', function(data) {
+      console.log('Status update received:', data);
+      
+      // Check if this execution is in our list
+      const executionRow = document.querySelector(`tr[data-execution-id="${data.execution_id}"]`);
+      
+      if (executionRow) {
+        // Update only this row
+        updateExecutionRow(data.execution_id, data.status);
+      } else {
+        // If row doesn't exist in our table, update the entire list
+        // This happens when a new execution is started
+        loadRecentExecutions();
+      }
+      
+      // Update statistics counters - always, regardless of row presence
+      const activePeriodBtn = document.querySelector('.period-btn.active');
+      const days = activePeriodBtn ? parseInt(activePeriodBtn.getAttribute('data-days')) : 7;
+      loadExecutionStats(days);
+      
+      // Show status notification
+      showStatusNotification(data);
+    });
+    
+    socket.on('disconnect', () => {
+      console.log('Socket.IO disconnected from dashboard. Reconnecting...');
+    });
+    
+    // Function to display status notification
+    function showStatusNotification(data) {
+      // Check if showToast function exists
+      if (typeof showToast !== 'function') {
+        console.warn('showToast function is not available');
+        return;
+      }
+      
+      let message, type, title;
+      
+      // Determine notification details based on status
+      switch(data.status) {
+        case 'Success':
+          title = 'Script Completed';
+          message = 'A script has completed successfully';
+          type = 'success';
+          break;
+        case 'Failed':
+          title = 'Script Failed';
+          message = 'A script has failed to execute';
+          type = 'error';
+          break;
+        case 'Running':
+          title = 'Script Started';
+          message = 'A new script is now running';
+          type = 'info';
+          break;
+        default:
+          title = 'Status Update';
+          message = `Script status changed to ${data.status}`;
+          type = 'info';
+      }
+      
+      // Show notification
+      showToast(message, type, title);
+    }
+    
+    // If user is inactive for more than 5 minutes, start auto-refresh
+    let userIdleTimer;
+    const IDLE_TIMEOUT = 5 * 60 * 1000; // 5 minutes
+    
+    function resetIdleTimer() {
+      clearTimeout(userIdleTimer);
+      userIdleTimer = setTimeout(() => {
+        // User is inactive, start auto-refresh
+        setInterval(() => {
+          loadRecentExecutions();
+          
+          const activePeriodBtn = document.querySelector('.period-btn.active');
+          const days = activePeriodBtn ? parseInt(activePeriodBtn.getAttribute('data-days')) : 7;
+          loadExecutionStats(days);
+        }, 30000); // Update every 30 seconds while user is inactive
+      }, IDLE_TIMEOUT);
+    }
+    
+    // Reset timer on user interaction
+    ['mousemove', 'mousedown', 'keypress', 'touchstart', 'scroll'].forEach(event => {
+      document.addEventListener(event, resetIdleTimer);
+    });
+    
+    // Start inactivity timer
+    resetIdleTimer();
+    
+    // Add auto-refresh with configurable interval
+    const DEFAULT_REFRESH_INTERVAL = 30000; // 30 seconds (default)
+    let AUTO_REFRESH_INTERVAL = getSavedRefreshInterval() || DEFAULT_REFRESH_INTERVAL;
+    let refreshIntervalTimer = null;
+    
+    // Function to get saved refresh interval from localStorage
+    function getSavedRefreshInterval() {
+      try {
+        const savedInterval = localStorage.getItem('dashboardRefreshInterval');
+        return savedInterval ? parseInt(savedInterval) : null;
+      } catch (e) {
+        console.warn('Error reading from localStorage:', e);
+        return null;
+      }
+    }
+    
+    // Function to save refresh interval to localStorage
+    function saveRefreshInterval(interval) {
+      try {
+        localStorage.setItem('dashboardRefreshInterval', interval.toString());
+        console.log(`Saved refresh interval: ${interval}ms`);
+      } catch (e) {
+        console.warn('Error saving to localStorage:', e);
+      }
+    }
+    
+    // Format display text for current interval
+    function formatIntervalDisplayText(interval) {
+      let displayText = 'Refresh: ';
+      if (interval < 60000) {
+        displayText += `${interval/1000}s`;
+      } else {
+        const minutes = interval / 60000;
+        displayText += `${minutes}m`;
+      }
+      return displayText;
+    }
+    
+    // Function to start auto-refresh with the current interval
+    function startAutoRefresh() {
+      // Clear existing timer if it exists
+      if (refreshIntervalTimer) {
+        clearInterval(refreshIntervalTimer);
+      }
+      
+      // Set up new timer with current interval
+      refreshIntervalTimer = setInterval(function() {
+        // Auto-refresh only if we're on the dashboard page
+        if (window.location.pathname === '/' || window.location.pathname === '/index') {
+          console.log(`Auto-refreshing dashboard data (interval: ${AUTO_REFRESH_INTERVAL/1000}s)...`);
+          
+          // Load list of recent executions
+          loadRecentExecutions();
+          
+          // Update statistics
+          const activePeriodBtn = document.querySelector('.period-btn.active');
+          if (activePeriodBtn) {
+            const days = parseInt(activePeriodBtn.getAttribute('data-days'));
+            loadExecutionStats(days);
+          }
+        }
+      }, AUTO_REFRESH_INTERVAL);
+    }
+    
+    // Initialize refresh interval dropdown functionality
+    document.querySelectorAll('.refresh-interval-item').forEach(item => {
+      const itemInterval = parseInt(item.getAttribute('data-interval'));
+      
+      // Set active class on the saved/default interval
+      if (itemInterval === AUTO_REFRESH_INTERVAL) {
+        item.classList.add('active');
+        document.getElementById('currentRefreshInterval').textContent = formatIntervalDisplayText(AUTO_REFRESH_INTERVAL);
+      }
+      
+      item.addEventListener('click', function(e) {
+        e.preventDefault();
+        
+        // Update the interval value
+        AUTO_REFRESH_INTERVAL = parseInt(this.getAttribute('data-interval'));
+        
+        // Save to localStorage
+        saveRefreshInterval(AUTO_REFRESH_INTERVAL);
+        
+        // Update active class
+        document.querySelectorAll('.refresh-interval-item').forEach(el => {
+          el.classList.remove('active');
+        });
+        this.classList.add('active');
+        
+        // Update the display text
+        document.getElementById('currentRefreshInterval').textContent = formatIntervalDisplayText(AUTO_REFRESH_INTERVAL);
+        
+        // Restart the timer with the new interval
+        startAutoRefresh();
+        
+        // Show toast notification
+        if (typeof showToast === 'function') {
+          showToast(`Dashboard refresh interval set to ${formatIntervalDisplayText(AUTO_REFRESH_INTERVAL)}`, 'info');
+        }
+      });
+    });
+    
+    // Start the initial auto-refresh
+    startAutoRefresh();
+  }
+  
+  /**
+   * Add CSS styles for counter animations
+   */
+  function addCounterAnimationStyles() {
+    const style = document.createElement('style');
+    style.textContent = `
+      .stat-number.changing {
+        transition: color 0.3s ease;
+        color: #206bc4;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  /**
+   * Function to cancel script execution
+   * @param {number} executionId - Execution ID to cancel
+   */
+  function cancelExecution(executionId) {
+      if (!executionId) {
+          console.error("No execution ID provided for cancellation");
+          return;
+      }
+      
+      if (!confirm('Are you sure you want to cancel this execution?')) {
+          return;
+      }
+      
+      console.log(`Sending cancel request for execution ID: ${executionId}`);
+      
+      // Find the cancel button and update its appearance
+      const cancelBtn = document.querySelector(`.cancel-execution-btn[data-execution-id="${executionId}"]`);
+      let originalBtnText = '';
+      
+      if (cancelBtn) {
+          originalBtnText = cancelBtn.innerHTML;
+          cancelBtn.innerHTML = '<i class="ti ti-loader ti-spin me-1"></i>Cancelling...';
+          cancelBtn.disabled = true;
+      }
+      
+      fetch(`/api/cancel_execution/${executionId}`, {
+          method: 'POST'
+      })
+      .then(response => {
+          console.log(`Received response for cancellation of execution ID: ${executionId}`);
+          return response.json();
+      })
+      .then(data => {
+          console.log(`Cancellation response data for execution ID ${executionId}:`, data);
+          
+          // Restore the original state of the button if it exists
+          if (cancelBtn) {
+              cancelBtn.innerHTML = originalBtnText;
+              cancelBtn.disabled = false;
+          }
+          
+          if (data.success) {
+              // Show notification about successful cancellation
+              if (typeof showToast === 'function') {
+                  showToast('Execution cancelled successfully', 'info');
+              } else {
+                  console.log('Execution cancelled successfully');
+              }
+              
+              // Update the list of recent executions
+              loadRecentExecutions();
+          } else {
+              // Show error message
+              if (typeof showToast === 'function') {
+                  showToast(data.message || 'Error cancelling execution', 'error');
+              } else {
+                  alert(data.message || 'Error cancelling execution');
+              }
+          }
+      })
+      .catch(error => {
+          console.error(`Error cancelling execution ${executionId}:`, error);
+          
+          // Restore the original state of the button if it exists
+          if (cancelBtn) {
+              cancelBtn.innerHTML = originalBtnText;
+              cancelBtn.disabled = false;
+          }
+          
+          // Show error message
+          if (typeof showToast === 'function') {
+              showToast('An error occurred while cancelling the execution', 'error');
+          } else {
+              alert('An error occurred while cancelling the execution');
+          }
+      });
+  }
+</script>
+{% endblock %}

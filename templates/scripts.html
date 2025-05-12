@@ -1,0 +1,1271 @@
+<!-- 
+templates/scripts.html
+This template manages the scripts list interface of the YellowStack application.
+It allows users to view, filter, register, run, edit parameters and delete scripts.
+The template includes several modal windows for various operations:
+- Register new script
+- Run a script
+- Edit script parameters
+- Delete script confirmation (custom modal replacing browser's confirm dialog)
+-->
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>Scripts</h1>
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#registerScriptModal">
+                Register New Script
+            </button>
+        </div>
+
+        <!-- Filter section - allows filtering scripts by user and description -->
+        <div class="card mb-4 filter-card">
+            <div class="card-header d-flex justify-content-between align-items-center" id="filtersHeader">
+                <h3 class="card-title mb-0">Filters</h3>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="toggleFiltersBtn" data-bs-toggle="collapse" data-bs-target="#filtersContent" aria-expanded="false">
+                    <i class="ti ti-chevron-down" id="filtersIcon"></i>
+                </button>
+            </div>
+            <div class="collapse" id="filtersContent">
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="userFilter" class="form-label">Added By</label>
+                            <select class="form-select" id="userFilter">
+                                <option value="">All users</option>
+                                <!-- Options will be populated dynamically -->
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="descriptionFilter" class="form-label">Description</label>
+                            <input type="text" class="form-control" id="descriptionFilter" placeholder="Filter by description...">
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <button type="button" class="btn btn-primary" id="applyFiltersBtn">
+                            <i class="ti ti-filter me-1"></i>Apply Filters
+                        </button>
+                        <button type="button" class="btn btn-secondary" id="resetFiltersBtn">
+                            <i class="ti ti-refresh me-1"></i>Reset Filters
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Scripts list - main table showing all registered scripts -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title mb-0">Registered Scripts</h3>
+            </div>
+            <div class="card-body border-bottom py-3">
+                <div id="scripts-list">
+                    <div class="d-flex justify-content-center my-4">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <span class="ms-2">Loading scripts...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for registering new script - opens when user clicks "Register New Script" button -->
+<div class="modal fade" id="registerScriptModal" tabindex="-1" aria-labelledby="registerScriptModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="registerScriptModalLabel">Register New Script</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="registerScriptForm">
+                    <div class="mb-3">
+                        <label for="scriptName" class="form-label">Script Name</label>
+                        <input type="text" class="form-control" id="scriptName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="scriptDescription" class="form-label">Description</label>
+                        <textarea class="form-control" id="scriptDescription" rows="3"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="scriptPath" class="form-label">Script Path</label>
+                        <input type="text" class="form-control" id="scriptPath" required>
+                        <small class="form-text text-muted">Enter the full path to the Python script</small>
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="requiresParameters">
+                        <label class="form-check-label" for="requiresParameters">
+                            Script requires parameters
+                        </label>
+                    </div>
+                    
+                    <!-- Parameters section - initially hidden, shows when "Script requires parameters" is checked -->
+                    <div id="parametersSection" class="mt-3 mb-3 border p-3 rounded bg-light" style="display: none;">
+                        <h6 class="mb-3">Script Parameters</h6>
+                        <div id="parametersContainer">
+                            <!-- Parameter inputs will be added here dynamically -->
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="addParameterBtn">
+                            <i class="ti ti-plus me-1"></i>Add Parameter
+                        </button>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="saveScriptBtn">Save Script</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for running a script - opens when user clicks "Run" button on a script -->
+<div class="modal fade" id="runScriptModal" tabindex="-1" aria-labelledby="runScriptModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="runScriptModalLabel">Run Script</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="runScriptForm">
+                    <input type="hidden" id="runScriptId">
+                    
+                    <div class="mb-3">
+                        <label for="awsProfile" class="form-label">AWS Profile</label>
+                        <select class="form-select" id="awsProfile">
+                            <option value="">Loading profiles...</option>
+                        </select>
+                    </div>
+
+                    <!-- AWS Region override dropdown - allows selecting a specific region for this execution -->
+                    <div class="mb-3">
+                        <label for="awsRegionOverride" class="form-label">AWS Region (Override)</label>
+                        <select class="form-select" id="awsRegionOverride">
+                            <option value="">Use profile's region</option>
+                            <!-- Will be populated dynamically with JavaScript -->
+                        </select>
+                        <small class="form-text text-muted">
+                            Temporarily overrides the region for this execution only.
+                            <span style="color: red;">It won't override the REGION parameter below if present</span>
+                          </small>
+                    </div>
+                    
+                    <!-- Script parameters section - dynamically populated based on script parameters -->
+                    <div id="scriptParametersContainer" class="mb-3" style="display: none;">
+                        <h6 class="mb-3 border-bottom pb-2">Script Parameters</h6>
+                        <div id="parameterInputsContainer">
+                            <!-- Parameter inputs will be added here dynamically -->
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="startScriptBtn">Run Script</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for editing script parameters - opens when user clicks "Parameters" button on a script -->
+<div class="modal fade" id="editParametersModal" tabindex="-1" aria-labelledby="editParametersModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editParametersModalLabel">Edit Script Parameters</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editParametersForm">
+                    <input type="hidden" id="editScriptId">
+                    
+                    <div id="editParametersContainer" class="mt-3 mb-3 border p-3 rounded bg-light">
+                        <h6 class="mb-3">Script Parameters</h6>
+                        <div id="editParametersInputs">
+                            <!-- Parameter inputs will be added here dynamically -->
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="addEditParameterBtn">
+                            <i class="ti ti-plus me-1"></i>Add Parameter
+                        </button>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="saveParametersBtn">Save Parameters</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Custom modal for script deletion confirmation - replaces standard browser confirm dialog -->
+<div class="modal fade" id="deleteScriptModal" tabindex="-1" aria-labelledby="deleteScriptModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteScriptModalLabel">Delete Confirmation</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="scriptIdToDelete">
+                <p>Are you sure you want to delete script <strong id="scriptNameToDelete"></strong>?</p>
+                <p class="text-danger">This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteScriptBtn">
+                    <i class="ti ti-trash me-1"></i>Delete
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block head %}
+<style>
+    /* Styles for filter card section */
+    .card.filter-card {
+        border: 1px solid rgba(0, 0, 0, 0.125);
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+        transition: all 0.3s ease;
+        margin-bottom: 1.5rem;
+    }
+    
+    .card.filter-card:hover {
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+    }
+
+    .filter-card .card-header {
+    background-color: #e3f2fd;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.125);
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    padding: 0.75rem 1.25rem;
+    }
+
+    .filter-card .card-header:hover {
+        background-color: #bbdefb;
+    }
+    
+    /* Animation styles for filter toggle icon */
+    #filtersIcon {
+        transition: transform 0.3s ease;
+    }
+    
+    .rotated {
+        transform: rotate(180deg);
+    }
+    
+    /* Custom styles for delete script confirmation modal */
+    @keyframes modal-appear {
+        0% { opacity: 0; transform: translateY(-20px); }
+        100% { opacity: 1; transform: translateY(0); }
+    }
+
+    #deleteScriptModal .modal-content {
+        animation: modal-appear 0.3s ease-out forwards;
+        border: none;
+        border-radius: 8px;
+        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15);
+    }
+
+    #deleteScriptModal .modal-header {
+        border-bottom: 1px solid rgba(214, 57, 57, 0.2);
+        padding: 1rem 1.5rem;
+        background-color: rgba(214, 57, 57, 0.05);
+    }
+
+    #deleteScriptModal .modal-title {
+        color: #d63939;
+        font-weight: 600;
+    }
+
+    #deleteScriptModal .modal-body {
+        padding: 1.5rem;
+    }
+
+    #deleteScriptModal .modal-footer {
+        border-top: 1px solid rgba(0, 0, 0, 0.05);
+        padding: 1rem 1.5rem;
+    }
+
+    /* Delete button styles with hover effects */
+    #confirmDeleteScriptBtn {
+        background-color: #d63939;
+        border-color: #d63939;
+        transition: all 0.2s ease;
+    }
+
+    #confirmDeleteScriptBtn:hover {
+        background-color: #b62b2b;
+        border-color: #b62b2b;
+        box-shadow: 0 0 0 2px rgba(214, 57, 57, 0.25);
+    }
+
+    #confirmDeleteScriptBtn i {
+        transition: transform 0.2s ease;
+    }
+
+    #confirmDeleteScriptBtn:hover i {
+        transform: translateX(-2px);
+    }
+
+    /* Styles for highlighted script name in delete modal */
+    #scriptNameToDelete {
+        color: #333;
+        font-weight: 600;
+    }
+
+    /* Warning text styling */
+    #deleteScriptModal .text-danger {
+        font-size: 0.9rem;
+        display: flex;
+        align-items: center;
+        margin-top: 1rem;
+    }
+
+    #deleteScriptModal .text-danger::before {
+        content: "⚠️";
+        margin-right: 0.5rem;
+        font-size: 1.1rem;
+    }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    /**
+     * Scripts Management Page JavaScript
+     * 
+     * This script handles all functionality related to script management:
+     * - Loading and filtering scripts
+     * - Adding/editing script parameters
+     * - Running scripts with AWS profiles
+     * - Deleting scripts with custom confirmation dialog
+     * - Region selection for AWS operations
+     */
+    
+    // =======================================
+    // GLOBAL VARIABLES 
+    // =======================================
+    let parameterCounter = 0;         // Counter for parameter fields in add script modal
+    let editParameterCounter = 0;     // Counter for parameter fields in edit modal
+    
+    // AWS Regions list for region dropdown
+    const awsRegions = [
+        { id: "us-east-1", name: "US East (N. Virginia)" },
+        { id: "us-east-2", name: "US East (Ohio)" },
+        { id: "us-west-1", name: "US West (N. California)" },
+        { id: "us-west-2", name: "US West (Oregon)" },
+        { id: "af-south-1", name: "Africa (Cape Town)" },
+        { id: "ap-east-1", name: "Asia Pacific (Hong Kong)" },
+        { id: "ap-south-1", name: "Asia Pacific (Mumbai)" },
+        { id: "ap-northeast-1", name: "Asia Pacific (Tokyo)" },
+        { id: "ap-northeast-2", name: "Asia Pacific (Seoul)" },
+        { id: "ap-northeast-3", name: "Asia Pacific (Osaka)" },
+        { id: "ap-southeast-1", name: "Asia Pacific (Singapore)" },
+        { id: "ap-southeast-2", name: "Asia Pacific (Sydney)" },
+        { id: "ap-southeast-3", name: "Asia Pacific (Jakarta)" },
+        { id: "ca-central-1", name: "Canada (Central)" },
+        { id: "eu-central-1", name: "Europe (Frankfurt)" },
+        { id: "eu-west-1", name: "Europe (Ireland)" },
+        { id: "eu-west-2", name: "Europe (London)" },
+        { id: "eu-west-3", name: "Europe (Paris)" },
+        { id: "eu-north-1", name: "Europe (Stockholm)" },
+        { id: "eu-south-1", name: "Europe (Milan)" },
+        { id: "me-south-1", name: "Middle East (Bahrain)" },
+        { id: "sa-east-1", name: "South America (São Paulo)" }
+    ];
+    
+    // =======================================
+    // FILTER FUNCTIONS 
+    // =======================================
+    
+    /**
+     * Populates filter dropdowns with unique values from scripts
+     * @param {Array} scripts - Array of script objects
+     */
+    function populateFilterDropdowns(scripts) {
+        console.log("Populating filter dropdowns");
+        
+        try {
+            // Get unique usernames
+            const users = new Set();
+            scripts.forEach(script => {
+                if (script.username) {
+                    users.add(script.username);
+                }
+            });
+            
+            // Populate username dropdown
+            const userFilter = document.getElementById('userFilter');
+            if (userFilter) {
+                userFilter.innerHTML = '<option value="">All users</option>';
+                Array.from(users).sort().forEach(username => {
+                    const option = document.createElement('option');
+                    option.value = username;
+                    option.textContent = username;
+                    userFilter.appendChild(option);
+                });
+            }
+        } catch (error) {
+            console.error("Error populating filter dropdowns:", error);
+        }
+    }
+    
+    // =======================================
+    // PARAMETER MANAGEMENT FUNCTIONS 
+    // =======================================
+    
+    /**
+     * Adds a parameter input field to the registration form
+     * @param {string} name - Default parameter name
+     * @param {string} defaultValue - Default parameter value
+     */
+    function addParameterField(name = '', defaultValue = '') {
+        const paramId = parameterCounter++;
+        const parameterRow = document.createElement('div');
+        parameterRow.className = 'parameter-row mb-2 d-flex align-items-center';
+        parameterRow.dataset.paramId = paramId;
+        
+        parameterRow.innerHTML = `
+            <div class="flex-grow-1 me-2">
+                <input type="text" class="form-control param-name" placeholder="Parameter name" value="${name}" required>
+            </div>
+            <div class="flex-grow-1 me-2">
+                <input type="text" class="form-control param-default" placeholder="Default value (optional)" value="${defaultValue}">
+            </div>
+            <div>
+                <button type="button" class="btn btn-sm btn-outline-danger remove-param" data-param-id="${paramId}">
+                    <i class="ti ti-trash"></i>
+                </button>
+            </div>
+        `;
+        
+        document.getElementById('parametersContainer').appendChild(parameterRow);
+        
+        // Add event listener for remove button
+        parameterRow.querySelector('.remove-param').addEventListener('click', function() {
+            const paramId = this.getAttribute('data-param-id');
+            removeParameterField(paramId);
+        });
+    }
+    
+    /**
+     * Adds a parameter input field to the edit parameters modal
+     * @param {string} name - Parameter name
+     * @param {string} defaultValue - Default parameter value
+     */
+    function addEditParameterField(name = '', defaultValue = '') {
+        const paramId = editParameterCounter++;
+        const parameterRow = document.createElement('div');
+        parameterRow.className = 'parameter-row mb-2 d-flex align-items-center';
+        parameterRow.dataset.paramId = paramId;
+        
+        parameterRow.innerHTML = `
+            <div class="flex-grow-1 me-2">
+                <input type="text" class="form-control param-name" placeholder="Parameter name" value="${name}" required>
+            </div>
+            <div class="flex-grow-1 me-2">
+                <input type="text" class="form-control param-default" placeholder="Default value (optional)" value="${defaultValue}">
+            </div>
+            <div>
+                <button type="button" class="btn btn-sm btn-outline-danger remove-edit-param" data-param-id="${paramId}">
+                    <i class="ti ti-trash"></i>
+                </button>
+            </div>
+        `;
+        
+        document.getElementById('editParametersInputs').appendChild(parameterRow);
+        
+        // Add event listener for remove button
+        parameterRow.querySelector('.remove-edit-param').addEventListener('click', function() {
+            const paramId = this.getAttribute('data-param-id');
+            removeEditParameterField(paramId);
+        });
+    }
+    
+    /**
+     * Removes a parameter input field from the add script form
+     * @param {string} paramId - Parameter ID to remove
+     */
+    function removeParameterField(paramId) {
+        const paramRow = document.querySelector(`.parameter-row[data-param-id="${paramId}"]`);
+        if (paramRow) {
+            paramRow.remove();
+        }
+    }
+    
+    /**
+     * Removes a parameter input field from the edit parameters form
+     * @param {string} paramId - Parameter ID to remove
+     */
+    function removeEditParameterField(paramId) {
+        const paramRow = document.querySelector('#editParametersInputs .parameter-row[data-param-id="' + paramId + '"]');
+        if (paramRow) {
+            paramRow.remove();
+        }
+    }
+    
+    /**
+     * Collects parameters from the add script form
+     * @returns {Array} Array of parameter objects
+     */
+    function collectParameters() {
+        const params = [];
+        
+        document.querySelectorAll('#parametersContainer .parameter-row').forEach(row => {
+            const nameInput = row.querySelector('.param-name');
+            const defaultInput = row.querySelector('.param-default');
+            
+            if (nameInput && nameInput.value.trim()) {
+                params.push({
+                    name: nameInput.value.trim(),
+                    default: defaultInput ? defaultInput.value : ''
+                });
+            }
+        });
+        
+        return params;
+    }
+    
+    /**
+     * Collects parameters from the edit parameters form
+     * @returns {Array} Array of parameter objects
+     */
+    function collectEditParameters() {
+        const params = [];
+        
+        document.querySelectorAll('#editParametersInputs .parameter-row').forEach(row => {
+            const nameInput = row.querySelector('.param-name');
+            const defaultInput = row.querySelector('.param-default');
+            
+            if (nameInput && nameInput.value.trim()) {
+                params.push({
+                    name: nameInput.value.trim(),
+                    default: defaultInput ? defaultInput.value : ''
+                });
+            }
+        });
+        
+        return params;
+    }
+    
+    // =======================================
+    // AWS REGION FUNCTIONS 
+    // =======================================
+    
+    /**
+     * Populates the AWS region dropdown
+     * @param {string} selectedRegion - Optional region to preselect
+     */
+    function populateRegionDropdown(selectedRegion = null) {
+        const regionSelect = document.getElementById('awsRegionOverride');
+        
+        // Clear existing options except the first "Use profile's region" option
+        while (regionSelect.options.length > 1) {
+            regionSelect.remove(1);
+        }
+        
+        // Add regions to dropdown
+        awsRegions.forEach(region => {
+            const option = document.createElement('option');
+            option.value = region.id;
+            option.textContent = `${region.id} - ${region.name}`;
+            
+            // If a region is specified, select it
+            if (selectedRegion && region.id === selectedRegion) {
+                option.selected = true;
+            }
+            
+            regionSelect.appendChild(option);
+        });
+    }
+    
+    /**
+     * Updates region dropdown based on selected AWS profile
+     * @param {string} profileId - AWS profile ID
+     */
+    function updateRegionFromProfile(profileId) {
+        fetch(`/api/aws_profiles/${profileId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.profile) {
+                    // Update the regions dropdown to highlight the profile's region
+                    const regionSelect = document.getElementById('awsRegionOverride');
+                    
+                    // Reset selection to "Use profile's region"
+                    regionSelect.value = '';
+                    
+                    // Add a note to the default option showing which region will be used
+                    regionSelect.options[0].textContent = `Use profile's region (${data.profile.aws_region})`;
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching profile details:', error);
+            });
+    }
+    
+    // =======================================
+    // SCRIPTS MANAGEMENT FUNCTIONS 
+    // =======================================
+    
+    /**
+     * Loads and displays the list of scripts, with optional filtering
+     * @param {Object} filters - Filter criteria
+     */
+    function loadScripts(filters = {}) {
+        console.log("Loading scripts with filters:", filters);
+        
+        fetch('/api/scripts')
+            .then(response => response.json())
+            .then(data => {
+                console.log("Received scripts data:", data);
+                const container = document.getElementById('scripts-list');
+                container.innerHTML = '';
+                
+                if (data.scripts.length === 0) {
+                    container.innerHTML = '<div class="alert alert-info">No scripts registered yet. Click the "Register New Script" button to add one.</div>';
+                    return;
+                }
+                
+                // Populate filter dropdowns on initial load
+                if (!filters.applied) {
+                    console.log("Initializing filter dropdowns");
+                    try {
+                        populateFilterDropdowns(data.scripts);
+                    } catch (e) {
+                        console.error("Error initializing filter dropdowns:", e);
+                    }
+                }
+                
+                // Apply filters
+                let filteredScripts = data.scripts;
+                
+                if (filters.user) {
+                    filteredScripts = filteredScripts.filter(script => 
+                        script.username === filters.user
+                    );
+                }
+                
+                if (filters.description) {
+                    const descriptionFilter = filters.description.toLowerCase();
+                    filteredScripts = filteredScripts.filter(script => 
+                        script.description && script.description.toLowerCase().includes(descriptionFilter)
+                    );
+                }
+                
+                console.log("Filtered scripts:", filteredScripts);
+                
+                // If no scripts match the filters
+                if (filteredScripts.length === 0) {
+                    container.innerHTML = '<div class="alert alert-info">No scripts match the current filters. Try adjusting your filters or click "Reset Filters".</div>';
+                    return;
+                }
+                
+                const table = document.createElement('table');
+                table.className = 'table';
+                table.innerHTML = `
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Added By</th>
+                            <th>Description</th>
+                            <th>Path</th>
+                            <th>Parameters</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    </tbody>
+                `;
+                
+                const tbody = table.querySelector('tbody');
+                
+                filteredScripts.forEach(script => {
+                    // Parse parameters if they exist
+                    let parametersText = 'No parameters';
+                    let hasParameters = false;
+                    
+                    if (script.parameters && script.parameters.length > 0) {
+                        try {
+                            const params = JSON.parse(script.parameters);
+                            if (params.length > 0) {
+                                parametersText = params.map(p => p.name).join(', ');
+                                hasParameters = true;
+                            }
+                        } catch (e) {
+                            console.error('Error parsing parameters:', e);
+                            parametersText = 'Error parsing parameters';
+                        }
+                    }
+                
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${script.name}</td>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <span class="avatar avatar-xs bg-blue-lt me-2">
+                                    ${script.username ? script.username.substring(0, 2).toUpperCase() : '--'}
+                                </span>
+                                <span>${script.username || 'Unknown'}</span>
+                            </div>
+                        </td>
+                        <td>${script.description || '-'}</td>
+                        <td><code>${script.path}</code></td>
+                        <td>${parametersText}</td>
+                        <td>
+                            <div class="btn-list">
+                                <button class="btn btn-sm btn-success run-script" data-script-id="${script.id}" 
+                                        data-script-name="${script.name}" data-parameters='${script.parameters || "[]"}'>
+                                    Run
+                                </button>
+                                ${hasParameters ? 
+                                    `<button class="btn btn-sm btn-info edit-parameters" data-script-id="${script.id}" 
+                                            data-script-name="${script.name}" data-parameters='${script.parameters || "[]"}'>
+                                        Parameters
+                                    </button>` : ''}
+                                <button class="btn btn-sm btn-danger delete-script" 
+                                        data-script-id="${script.id}" 
+                                        data-script-name="${script.name}">
+                                    <i class="ti ti-trash me-1"></i>Delete
+                                </button>
+                            </div>
+                        </td>
+                    `;
+                    
+                    tbody.appendChild(row);
+                });
+                
+                container.appendChild(table);
+                
+                // Add event listeners for run buttons
+                document.querySelectorAll('.run-script').forEach(button => {
+                    button.addEventListener('click', function() {
+                        const scriptId = this.getAttribute('data-script-id');
+                        const scriptName = this.getAttribute('data-script-name');
+                        const parametersJSON = this.getAttribute('data-parameters');
+                        
+                        // Set the script ID in the run modal
+                        document.getElementById('runScriptId').value = scriptId;
+                        document.getElementById('runScriptModalLabel').textContent = `Run Script: ${scriptName}`;
+                        
+                        // Load parameters if they exist
+                        if (parametersJSON && parametersJSON !== '[]') {
+                            try {
+                                const parameters = JSON.parse(parametersJSON);
+                                setupParameterInputs(parameters);
+                            } catch (e) {
+                                console.error('Error parsing parameters:', e);
+                            }
+                        } else {
+                            // Hide parameters section
+                            document.getElementById('scriptParametersContainer').style.display = 'none';
+                        }
+                        
+                        // Load AWS profiles
+                        loadAwsProfiles();
+                        
+                        // Initialize the AWS Region dropdown
+                        populateRegionDropdown();
+                        
+                        // Show the modal
+                        const modal = new bootstrap.Modal(document.getElementById('runScriptModal'));
+                        modal.show();
+                    });
+                });
+                
+                // Add event listeners for parameters edit buttons
+                document.querySelectorAll('.edit-parameters').forEach(button => {
+                    button.addEventListener('click', function() {
+                        const scriptId = this.getAttribute('data-script-id');
+                        const scriptName = this.getAttribute('data-script-name');
+                        const parametersJSON = this.getAttribute('data-parameters');
+                        
+                        // Set the script ID in the edit modal
+                        document.getElementById('editScriptId').value = scriptId;
+                        document.getElementById('editParametersModalLabel').textContent = `Edit Parameters: ${scriptName}`;
+                        
+                        // Clear existing parameters
+                        document.getElementById('editParametersInputs').innerHTML = '';
+                        editParameterCounter = 0;
+                        
+                        // Load parameters if they exist
+                        if (parametersJSON && parametersJSON !== '[]') {
+                            try {
+                                const parameters = JSON.parse(parametersJSON);
+                                parameters.forEach(param => {
+                                    addEditParameterField(param.name, param.default);
+                                });
+                            } catch (e) {
+                                console.error('Error parsing parameters:', e);
+                            }
+                        }
+                        
+                        // Show the modal
+                        const modal = new bootstrap.Modal(document.getElementById('editParametersModal'));
+                        modal.show();
+                    });
+                });
+                
+                // Setup delete buttons with custom confirmation modal
+                setupDeleteButtons();
+            })
+            .catch(error => {
+                console.error('Error loading scripts:', error);
+                document.getElementById('scripts-list').innerHTML = 
+                    '<div class="alert alert-danger">Error loading scripts: ' + error.message + '</div>';
+            });
+    }
+    
+    /**
+     * Sets up parameter inputs for running a script
+     * @param {Array} parameters - Array of parameter objects
+     */
+    function setupParameterInputs(parameters) {
+        const container = document.getElementById('parameterInputsContainer');
+        container.innerHTML = '';
+        
+        if (parameters && parameters.length > 0) {
+            parameters.forEach(param => {
+                const inputGroup = document.createElement('div');
+                inputGroup.className = 'mb-3';
+                inputGroup.innerHTML = `
+                    <label class="form-label">${param.name}</label>
+                    <input type="text" class="form-control" name="param-${param.name}" 
+                           value="${param.default || ''}" placeholder="Enter value">
+                `;
+                container.appendChild(inputGroup);
+            });
+            
+            // Show parameters section
+            document.getElementById('scriptParametersContainer').style.display = 'block';
+        } else {
+            // Hide parameters section
+            document.getElementById('scriptParametersContainer').style.display = 'none';
+        }
+    }
+    
+    /**
+     * Collects parameter values from the run script form
+     * @returns {Object} Parameter values object
+     */
+    function collectParameterValues() {
+        const params = {};
+        
+        document.querySelectorAll('#parameterInputsContainer input').forEach(input => {
+            if (input.name && input.name.startsWith('param-')) {
+                const paramName = input.name.substring(6); // Remove 'param-' prefix
+                params[paramName] = input.value;
+            }
+        });
+        
+        return params;
+    }
+    
+    /**
+     * Loads AWS profiles for the run script modal
+     */
+    function loadAwsProfiles() {
+        fetch('/api/aws_profiles')
+            .then(response => response.json())
+            .then(data => {
+                const select = document.getElementById('awsProfile');
+                select.innerHTML = '';
+                
+                if (data.profiles.length === 0) {
+                    select.innerHTML = '<option value="">No profiles available. Please add one in Settings.</option>';
+                    return;
+                }
+                
+                data.profiles.forEach(profile => {
+                    const option = document.createElement('option');
+                    option.value = profile.id;
+                    option.textContent = profile.name;
+                    option.selected = profile.is_default === 1;
+                    select.appendChild(option);
+                });
+                
+                // Update region dropdown based on selected profile
+                const selectedProfileId = select.value;
+                if (selectedProfileId) {
+                    updateRegionFromProfile(selectedProfileId);
+                }
+                
+                // Add event listener for profile change
+                select.addEventListener('change', function() {
+                    const profileId = this.value;
+                    if (profileId) {
+                        updateRegionFromProfile(profileId);
+                    }
+                });
+            })
+            .catch(error => {
+                console.error('Error loading AWS profiles:', error);
+                document.getElementById('awsProfile').innerHTML = 
+                    '<option value="">Error loading profiles</option>';
+            });
+    }
+    
+    /**
+     * Deletes a script - performs the actual API call
+     * Called after confirmation from the modal dialog
+     * @param {string} scriptId - Script ID to delete
+     */
+    function deleteScript(scriptId) {
+        // Send delete request to the API
+        fetch(`/api/scripts/${scriptId}`, {
+            method: 'DELETE',
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                loadScripts();
+                showToast('Script successfully deleted!', 'success');
+            } else {
+                showToast(data.message || 'Error deleting script', 'error');
+                loadScripts(); // Reload the list anyway
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showToast('An error occurred while deleting the script', 'error');
+            loadScripts(); // Reload the list
+        });
+    }
+    
+    /**
+     * Registers a new script
+     */
+    function registerScript() {
+        const name = document.getElementById('scriptName').value;
+        const description = document.getElementById('scriptDescription').value;
+        const path = document.getElementById('scriptPath').value;
+        const requiresParameters = document.getElementById('requiresParameters').checked;
+        
+        if (!name || !path) {
+            alert('Name and path are required!');
+            return;
+        }
+        
+        // Collect parameters if enabled
+        let scriptParameters = [];
+        if (requiresParameters) {
+            scriptParameters = collectParameters();
+        }
+        
+        fetch('/api/scripts', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                name: name,
+                description: description,
+                path: path,
+                parameters: scriptParameters.length > 0 ? JSON.stringify(scriptParameters) : null
+            }),
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Close the modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('registerScriptModal'));
+                modal.hide();
+                
+                // Reset the form
+                document.getElementById('registerScriptForm').reset();
+                document.getElementById('parametersContainer').innerHTML = '';
+                document.getElementById('parametersSection').style.display = 'none';
+                parameterCounter = 0;
+                
+                // Reload the scripts list
+                loadScripts();
+                
+                alert('Script registered successfully!');
+            } else {
+                alert('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error registering script:', error);
+            alert('An error occurred while registering the script.');
+        });
+    }
+    
+    /**
+     * Updates script parameters
+     */
+    function updateScriptParameters() {
+        const scriptId = document.getElementById('editScriptId').value;
+        const parameters = collectEditParameters();
+        
+        fetch(`/api/scripts/${scriptId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                parameters: parameters.length > 0 ? JSON.stringify(parameters) : null
+            }),
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Close the modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('editParametersModal'));
+                modal.hide();
+                
+                // Reload the scripts list
+                loadScripts();
+                
+                alert('Parameters updated successfully!');
+            } else {
+                alert('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error updating parameters:', error);
+            alert('An error occurred while updating the parameters.');
+        });
+    }
+
+    /**
+     * Sets up event listeners for delete script buttons
+     * Uses custom modal dialog instead of standard browser confirm
+     */
+    function setupDeleteButtons() {
+        document.querySelectorAll('.delete-script').forEach(button => {
+            button.addEventListener('click', function(e) {
+                e.preventDefault(); // Prevent default behavior
+                
+                const scriptId = this.getAttribute('data-script-id');
+                const scriptName = this.getAttribute('data-script-name') || '';
+                
+                // Populate script info in the modal
+                document.getElementById('scriptIdToDelete').value = scriptId;
+                document.getElementById('scriptNameToDelete').textContent = scriptName || 'this script';
+                
+                // Show the modal
+                const modal = new bootstrap.Modal(document.getElementById('deleteScriptModal'));
+                modal.show();
+            });
+        });
+    }
+    
+    /**
+     * Runs a script with selected AWS profile and parameters
+     */
+    function runScript() {
+        const scriptId = document.getElementById('runScriptId').value;
+        const profileId = document.getElementById('awsProfile').value;
+        const regionOverride = document.getElementById('awsRegionOverride').value;
+        
+        if (!profileId) {
+            alert('Please select an AWS profile!');
+            return;
+        }
+        
+        // Collect parameter values
+        const paramValues = collectParameterValues();
+        
+        // Prepare request data
+        const requestData = {
+            script_id: scriptId,
+            profile_id: profileId,
+            parameters: JSON.stringify(paramValues)
+        };
+        
+        // Add region override if selected
+        if (regionOverride) {
+            requestData.region_override = regionOverride;
+        }
+        
+        fetch('/api/run_script', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(requestData),
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Close the modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('runScriptModal'));
+                modal.hide();
+                
+                // Redirect to execution details
+                window.location.href = `/execution_details/${data.execution_id}`;
+            } else {
+                alert('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error running script:', error);
+            alert('An error occurred while starting the script.');
+        });
+    }
+    
+    // =======================================
+    // INITIALIZATION
+    // =======================================
+    
+    /**
+     * Initialize the page when DOM is fully loaded
+     */
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log("Document ready, initializing event listeners");
+        
+        try {
+            // Load scripts on page load
+            loadScripts();
+            
+            // Add event listener for save button in register modal
+            document.getElementById('saveScriptBtn').addEventListener('click', registerScript);
+            
+            // Add event listener for save button in edit parameters modal
+            document.getElementById('saveParametersBtn').addEventListener('click', updateScriptParameters);
+            
+            // Add event listener for run button in run modal
+            document.getElementById('startScriptBtn').addEventListener('click', runScript);
+            
+            // Add event listener for parameters checkbox
+            document.getElementById('requiresParameters').addEventListener('change', function() {
+                document.getElementById('parametersSection').style.display = 
+                    this.checked ? 'block' : 'none';
+                
+                // Add one parameter field by default if checked and none exist
+                if (this.checked && document.querySelectorAll('#parametersContainer .parameter-row').length === 0) {
+                    addParameterField();
+                }
+            });
+            
+            // Add event listener for add parameter button
+            document.getElementById('addParameterBtn').addEventListener('click', function() {
+                addParameterField();
+            });
+            
+            // Add event listener for add parameter button in edit modal
+            document.getElementById('addEditParameterBtn').addEventListener('click', function() {
+                addEditParameterField();
+            });
+            
+            // Add event listeners for filter buttons
+            document.getElementById('applyFiltersBtn').addEventListener('click', function() {
+                const filters = {
+                    user: document.getElementById('userFilter').value,
+                    description: document.getElementById('descriptionFilter').value,
+                    applied: true
+                };
+                loadScripts(filters);
+            });
+            
+            document.getElementById('resetFiltersBtn').addEventListener('click', function() {
+                // Reset filter dropdowns
+                document.getElementById('userFilter').value = '';
+                document.getElementById('descriptionFilter').value = '';
+                
+                // Reload without filters
+                loadScripts();
+            });
+            
+            // Add event listener for Enter key in description filter
+            document.getElementById('descriptionFilter').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    document.getElementById('applyFiltersBtn').click();
+                }
+            });
+            
+            // Add toggle functionality for filters section
+            document.getElementById('toggleFiltersBtn').addEventListener('click', function() {
+                const icon = document.getElementById('filtersIcon');
+                if (icon.classList.contains('ti-chevron-down')) {
+                    icon.classList.remove('ti-chevron-down');
+                    icon.classList.add('ti-chevron-up');
+                } else {
+                    icon.classList.remove('ti-chevron-up');
+                    icon.classList.add('ti-chevron-down');
+                }
+            });
+            
+            // Initialize Socket.IO for real-time updates
+            const socket = io();
+            
+            // Listen for script status updates
+            socket.on('script_status_update', function(data) {
+                // Handle real-time updates for script status changes
+                console.log('Script status update:', data);
+            });
+            
+            // Enhanced functionality for filter header
+            const filtersHeader = document.getElementById('filtersHeader');
+            const filtersContent = document.getElementById('filtersContent');
+            const filtersIcon = document.getElementById('filtersIcon');
+            
+            if (filtersHeader) {
+                filtersHeader.addEventListener('click', function(event) {
+                    // Check that click wasn't on the icon button
+                    // (to prevent double triggering)
+                    if (!event.target.closest('#toggleFiltersBtn')) {
+                        const collapse = new bootstrap.Collapse(filtersContent);
+                        collapse.toggle();
+                        
+                        // Animate the icon
+                        filtersIcon.classList.toggle('rotated');
+                    }
+                });
+            }
+            
+            // Updated handler for icon button
+            const toggleFiltersBtn = document.getElementById('toggleFiltersBtn');
+            if (toggleFiltersBtn) {
+                // Use stopPropagation to prevent event bubbling
+                toggleFiltersBtn.addEventListener('click', function(event) {
+                    event.stopPropagation();
+                    
+                    // Animate the icon
+                    filtersIcon.classList.toggle('rotated');
+                });
+            }
+            
+            // Add handler for delete confirmation button
+            const confirmDeleteScriptBtn = document.getElementById('confirmDeleteScriptBtn');
+            if (confirmDeleteScriptBtn) {
+                confirmDeleteScriptBtn.addEventListener('click', function() {
+                    const scriptId = document.getElementById('scriptIdToDelete').value;
+                    if (!scriptId) return;
+                    
+                    // Hide the modal
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('deleteScriptModal'));
+                    modal.hide();
+                    
+                    // Show loading indicator
+                    document.getElementById('scripts-list').innerHTML = `
+                        <div class="d-flex justify-content-center my-4">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Deleting script...</span>
+                            </div>
+                            <span class="ms-2">Deleting script...</span>
+                        </div>
+                    `;
+                    
+                    // Delete the script
+                    deleteScript(scriptId);
+                });
+            }
+        } catch (error) {
+            console.error("Error initializing page:", error);
+            document.getElementById('scripts-list').innerHTML = 
+                '<div class="alert alert-danger">Error initializing page: ' + error.message + '</div>';
+        }
+    });
+</script>
+{% endblock %}

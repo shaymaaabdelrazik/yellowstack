@@ -1,0 +1,605 @@
+<!-- templates/users.html -->
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>User Management</h1>
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addUserModal">
+                <i class="ti ti-user-plus me-1"></i> Add New User
+            </button>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">User Accounts</h3>
+            </div>
+            <div class="card-body">
+                <div id="users-list">
+                    <div class="d-flex justify-content-center my-4">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <span class="ms-2">Loading users...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for adding new user -->
+<div class="modal fade" id="addUserModal" tabindex="-1" aria-labelledby="addUserModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addUserModalLabel">Add New User</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addUserForm">
+                    <input type="hidden" name="csrf_token" id="add_csrf_token" value="{{ csrf_token() }}"/>
+                    <div class="mb-3">
+                        <label for="username" class="form-label">Username</label>
+                        <input type="text" class="form-control" id="username" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Password</label>
+                        <div class="input-group">
+                            <input type="password" class="form-control" id="password" required>
+                            <button class="btn btn-outline-secondary" type="button" id="togglePasswordBtn">
+                                <i class="ti ti-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="isAdmin">
+                        <label class="form-check-label" for="isAdmin">
+                            Administrator privileges
+                        </label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="saveUserBtn">Save User</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Confirmation modal for deleting users -->
+<div class="modal fade" id="confirmDeleteModal" tabindex="-1" aria-labelledby="confirmDeleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="confirmDeleteModalLabel">Confirm Delete</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete this user? This action cannot be undone.</p>
+                <input type="hidden" id="deleteUserId">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">Delete User</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for editing user -->
+<div class="modal fade" id="editUserModal" tabindex="-1" aria-labelledby="editUserModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editUserModalLabel">Edit User</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editUserForm">
+                    <input type="hidden" id="editUserId">
+                    <input type="hidden" name="csrf_token" id="edit_csrf_token" value="{{ csrf_token() }}"/>
+                    
+                    <div class="mb-3">
+                        <label for="editUsername" class="form-label">Username</label>
+                        <input type="text" class="form-control" id="editUsername" readonly>
+                        <small class="form-text text-muted">Username cannot be changed</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="newPassword" class="form-label">New Password</label>
+                        <div class="input-group">
+                            <input type="password" class="form-control" id="newPassword" placeholder="Leave empty to keep current password">
+                            <button class="btn btn-outline-secondary" type="button" id="toggleNewPasswordBtn">
+                                <i class="ti ti-eye"></i>
+                            </button>
+                        </div>
+                        <small class="form-text text-muted">Enter a new password only if you want to change it</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="confirmNewPassword" class="form-label">Confirm New Password</label>
+                        <div class="input-group">
+                            <input type="password" class="form-control" id="confirmNewPassword">
+                            <button class="btn btn-outline-secondary" type="button" id="toggleConfirmPasswordBtn">
+                                <i class="ti ti-eye"></i>
+                            </button>
+                        </div>
+                        <div class="invalid-feedback" id="passwordMismatchFeedback">
+                            Passwords do not match
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="saveUserChangesBtn">Save Changes</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Load users list
+    function loadUsers() {
+        fetch('/api/users')
+            .then(response => {
+                if (!response.ok) {
+                    if (response.status === 403) {
+                        throw new Error('Unauthorized: Admin access required');
+                    }
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                const container = document.getElementById('users-list');
+                container.innerHTML = '';
+                
+                if (data.users.length === 0) {
+                    container.innerHTML = '<div class="alert alert-info">No users found.</div>';
+                    return;
+                }
+                
+                const tableResponsive = document.createElement('div');
+                tableResponsive.className = 'table-responsive';
+                
+                const table = document.createElement('table');
+                table.className = 'table table-vcenter card-table';
+                table.innerHTML = `
+                    <thead>
+                        <tr>
+                            <th>Username</th>
+                            <th>Role</th>
+                            <th>Created</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    </tbody>
+                `;
+                
+                const tbody = table.querySelector('tbody');
+                
+                data.users.forEach(user => {
+                    const row = document.createElement('tr');
+                    
+                    // Format date
+                    const createdDate = new Date(user.created_at);
+                    const formattedDate = createdDate.toLocaleDateString() + ' ' + createdDate.toLocaleTimeString();
+                    
+                    // Disable delete for current user
+                    const isCurrentUser = user.username === '{{ session.username }}';
+                    
+                    row.innerHTML = `
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <span class="avatar avatar-sm bg-blue-lt me-2">${user.username.substring(0, 2).toUpperCase()}</span>
+                                <div>${user.username}</div>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input toggle-admin" type="checkbox" id="admin-${user.id}" 
+                                       ${user.is_admin ? 'checked' : ''} data-user-id="${user.id}"
+                                       ${isCurrentUser ? 'disabled' : ''}>
+                                <label class="form-check-label" for="admin-${user.id}">
+                                    ${user.is_admin ? 'Administrator' : 'Regular User'}
+                                </label>
+                            </div>
+                        </td>
+                        <td>${formattedDate}</td>
+                        <td>
+                            <button class="btn btn-sm btn-info edit-user me-1" data-user-id="${user.id}" data-username="${user.username}">
+                                <i class="ti ti-edit me-1"></i>Edit
+                            </button>
+                            <button class="btn btn-sm btn-danger delete-user" data-user-id="${user.id}" 
+                                    ${isCurrentUser ? 'disabled' : ''}>
+                                <i class="ti ti-trash me-1"></i>Delete
+                            </button>
+                        </td>
+                    `;
+                    
+                    tbody.appendChild(row);
+                });
+                
+                tableResponsive.appendChild(table);
+                container.appendChild(tableResponsive);
+                
+                // Add event listeners for toggle admin buttons
+                document.querySelectorAll('.toggle-admin').forEach(toggle => {
+                    toggle.addEventListener('change', function() {
+                        const userId = this.getAttribute('data-user-id');
+                        const isAdmin = this.checked;
+                        
+                        // Update label text immediately
+                        const label = this.nextElementSibling;
+                        label.textContent = isAdmin ? 'Administrator' : 'Regular User';
+                        
+                        // Send API request to update admin status
+                        toggleAdminStatus(userId, isAdmin);
+                    });
+                });
+                
+                // Add event listeners for delete buttons
+                document.querySelectorAll('.delete-user').forEach(button => {
+                    button.addEventListener('click', function() {
+                        const userId = this.getAttribute('data-user-id');
+                        showDeleteConfirmation(userId);
+                    });
+                });
+                
+                // Add event listeners for edit buttons
+                setupEditButtons();
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                
+                const container = document.getElementById('users-list');
+                container.innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="ti ti-alert-circle me-2"></i>
+                        ${error.message || 'Error loading users'}
+                    </div>
+                `;
+                
+                // If unauthorized, hide the add button
+                if (error.message === 'Unauthorized: Admin access required') {
+                    document.querySelector('.btn[data-bs-toggle="modal"][data-bs-target="#addUserModal"]').style.display = 'none';
+                }
+            });
+    }
+    
+    // Function to update user password
+    function updateUser(userId, newPassword) {
+        // Show loading indicator
+        const saveBtn = document.getElementById('saveUserChangesBtn');
+        const originalBtnText = saveBtn.innerHTML;
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<i class="ti ti-loader ti-spin me-1"></i>Saving...';
+        
+        fetch(`/api/users/${userId}/update-password`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                new_password: newPassword
+            }),
+        })
+        .then(response => response.json())
+        .then(data => {
+            // Reset button state
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = originalBtnText;
+            
+            if (data.success) {
+                // Close modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('editUserModal'));
+                modal.hide();
+                
+                // Reset form
+                document.getElementById('editUserForm').reset();
+                
+                // Show success message
+                showToast('User password updated successfully', 'success');
+            } else {
+                showToast(data.message || 'Error updating user', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            
+            // Reset button state
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = originalBtnText;
+            
+            showToast('An error occurred while updating the user', 'error');
+        });
+    }
+    
+    // Toggle admin status for a user
+    function toggleAdminStatus(userId, isAdmin) {
+        fetch(`/api/users/${userId}/admin`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                is_admin: isAdmin
+            }),
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast(`Admin status ${isAdmin ? 'granted' : 'revoked'} successfully`, 'success');
+            } else {
+                // Revert the toggle
+                document.getElementById(`admin-${userId}`).checked = !isAdmin;
+                document.querySelector(`label[for="admin-${userId}"]`).textContent = 
+                    !isAdmin ? 'Administrator' : 'Regular User';
+                
+                showToast(data.message || 'Error updating admin status', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            
+            // Revert the toggle
+            document.getElementById(`admin-${userId}`).checked = !isAdmin;
+            document.querySelector(`label[for="admin-${userId}"]`).textContent = 
+                !isAdmin ? 'Administrator' : 'Regular User';
+            
+            showToast('An error occurred while updating admin status', 'error');
+        });
+    }
+    
+    // Show delete confirmation modal
+    function showDeleteConfirmation(userId) {
+        document.getElementById('deleteUserId').value = userId;
+        const modal = new bootstrap.Modal(document.getElementById('confirmDeleteModal'));
+        modal.show();
+    }
+    
+    // Delete a user
+    function deleteUser(userId) {
+        fetch(`/api/users/${userId}`, {
+            method: 'DELETE',
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                loadUsers();
+                showToast('User deleted successfully', 'success');
+            } else {
+                showToast(data.message || 'Error deleting user', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showToast('An error occurred while deleting the user', 'error');
+        });
+    }
+    
+    // Add a new user
+    function addUser() {
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+        const isAdmin = document.getElementById('isAdmin').checked;
+        
+        if (!username || !password) {
+            showToast('Username and password are required', 'warning');
+            return;
+        }
+        
+        // Disable button during request
+        const saveBtn = document.getElementById('saveUserBtn');
+        const originalBtnText = saveBtn.innerHTML;
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<i class="ti ti-loader ti-spin me-1"></i>Saving...';
+        
+        fetch('/api/users', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                username: username,
+                password: password,
+                is_admin: isAdmin
+            }),
+        })
+        .then(response => response.json())
+        .then(data => {
+            // Reset button state
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = originalBtnText;
+            
+            if (data.success) {
+                // Close modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('addUserModal'));
+                modal.hide();
+                
+                // Reset form
+                document.getElementById('addUserForm').reset();
+                
+                // Reload users
+                loadUsers();
+                
+                showToast('User added successfully', 'success');
+            } else {
+                showToast(data.message || 'Error adding user', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            
+            // Reset button state
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = originalBtnText;
+            
+            showToast('An error occurred while adding the user', 'error');
+        });
+    }
+    
+    // Make sure showToast is defined
+    function ensureToastFunction() {
+        if (typeof showToast !== 'function') {
+            window.showToast = function(message, type) {
+                console.log(`Toast (${type}): ${message}`);
+                alert(message);
+            };
+        }
+    }
+    
+    // Initialize page
+    document.addEventListener('DOMContentLoaded', function() {
+        ensureToastFunction();
+        
+        // Load initial data
+        loadUsers();
+        
+        // Set up event handlers
+        const togglePasswordBtn = document.getElementById('togglePasswordBtn');
+        if (togglePasswordBtn) {
+            togglePasswordBtn.addEventListener('click', function() {
+                const passwordInput = document.getElementById('password');
+                const type = passwordInput.type === 'password' ? 'text' : 'password';
+                passwordInput.type = type;
+                this.querySelector('i').className = type === 'password' ? 'ti ti-eye' : 'ti ti-eye-off';
+            });
+        }
+        
+        const saveUserBtn = document.getElementById('saveUserBtn');
+        if (saveUserBtn) {
+            saveUserBtn.addEventListener('click', addUser);
+        }
+        
+        const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+        if (confirmDeleteBtn) {
+            confirmDeleteBtn.addEventListener('click', function() {
+                const userId = document.getElementById('deleteUserId').value;
+                
+                // Close the modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('confirmDeleteModal'));
+                modal.hide();
+                
+                // Delete the user
+                deleteUser(userId);
+            });
+        }
+        
+        // Function to setup edit buttons event listeners
+        window.setupEditButtons = function() {
+            document.querySelectorAll('.edit-user').forEach(button => {
+                button.addEventListener('click', function() {
+                    const userId = this.getAttribute('data-user-id');
+                    const username = this.getAttribute('data-username');
+                    
+                    // Fill form with user data
+                    document.getElementById('editUserId').value = userId;
+                    document.getElementById('editUsername').value = username;
+                    
+                    // Clear password fields
+                    document.getElementById('newPassword').value = '';
+                    document.getElementById('confirmNewPassword').value = '';
+                    
+                    // Reset error message
+                    document.getElementById('confirmNewPassword').classList.remove('is-invalid');
+                    document.getElementById('passwordMismatchFeedback').style.display = 'none';
+                    
+                    // Show modal
+                    const modal = new bootstrap.Modal(document.getElementById('editUserModal'));
+                    modal.show();
+                });
+            });
+        };
+        
+        // Add event handler for save changes button
+        const saveUserChangesBtn = document.getElementById('saveUserChangesBtn');
+        if (saveUserChangesBtn) {
+            saveUserChangesBtn.addEventListener('click', function() {
+                const userId = document.getElementById('editUserId').value;
+                const newPassword = document.getElementById('newPassword').value;
+                const confirmNewPassword = document.getElementById('confirmNewPassword').value;
+                
+                // Check if password fields are filled
+                if (newPassword) {
+                    // Check if passwords match
+                    if (newPassword !== confirmNewPassword) {
+                        document.getElementById('confirmNewPassword').classList.add('is-invalid');
+                        document.getElementById('passwordMismatchFeedback').style.display = 'block';
+                        return;
+                    }
+                    
+                    // Remove error message
+                    document.getElementById('confirmNewPassword').classList.remove('is-invalid');
+                    document.getElementById('passwordMismatchFeedback').style.display = 'none';
+                    
+                    // Update user
+                    updateUser(userId, newPassword);
+                } else {
+                    // If password was not changed, just close the modal
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('editUserModal'));
+                    modal.hide();
+                    showToast('No changes were made', 'info');
+                }
+            });
+        }
+        
+        // Toggle password visibility for new password
+        const toggleNewPasswordBtn = document.getElementById('toggleNewPasswordBtn');
+        if (toggleNewPasswordBtn) {
+            toggleNewPasswordBtn.addEventListener('click', function() {
+                const input = document.getElementById('newPassword');
+                const icon = this.querySelector('i');
+                
+                if (input.type === 'password') {
+                    input.type = 'text';
+                    icon.className = 'ti ti-eye-off';
+                } else {
+                    input.type = 'password';
+                    icon.className = 'ti ti-eye';
+                }
+            });
+        }
+        
+        // Toggle password visibility for confirm password
+        const toggleConfirmPasswordBtn = document.getElementById('toggleConfirmPasswordBtn');
+        if (toggleConfirmPasswordBtn) {
+            toggleConfirmPasswordBtn.addEventListener('click', function() {
+                const input = document.getElementById('confirmNewPassword');
+                const icon = this.querySelector('i');
+                
+                if (input.type === 'password') {
+                    input.type = 'text';
+                    icon.className = 'ti ti-eye-off';
+                } else {
+                    input.type = 'password';
+                    icon.className = 'ti ti-eye';
+                }
+            });
+        }
+        
+        // Check password match on input
+        const confirmNewPassword = document.getElementById('confirmNewPassword');
+        if (confirmNewPassword) {
+            confirmNewPassword.addEventListener('input', function() {
+                const newPassword = document.getElementById('newPassword').value;
+                
+                if (this.value && newPassword && this.value !== newPassword) {
+                    this.classList.add('is-invalid');
+                    document.getElementById('passwordMismatchFeedback').style.display = 'block';
+                } else {
+                    this.classList.remove('is-invalid');
+                    document.getElementById('passwordMismatchFeedback').style.display = 'none';
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

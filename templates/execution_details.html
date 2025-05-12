@@ -1,0 +1,850 @@
+<!-- templates/execution_details.html -->
+{% extends "layout.html" %}
+
+{% block head %}
+{% if styles %}
+    {{ styles|safe }}
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<!-- Debug Information -->
+<div class="alert alert-info">
+    <p>Template loaded. Execution ID: {{ execution_id|default('Not provided') }}</p>
+    <p>Current time: {{ now }}</p>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="/execution_history">Execution History</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Execution Details</li>
+            </ol>
+        </nav>
+        
+        <div class="execution-details-container">
+            <div class="execution-details-header">
+                <h2>Execution Details</h2>
+                <div id="execution-status-badge" class="mb-3">
+                    <div class="spinner-border spinner-border-sm" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <span>Loading status...</span>
+                </div>
+                <div id="execution-actions" class="mb-3" style="display: none;">
+                    <button id="cancel-execution-btn" class="btn btn-danger">
+                        <i class="ti ti-x me-1"></i>Cancel Execution
+                    </button>
+                </div>
+            </div>
+            
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Script Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <table class="table table-sm">
+                                <tbody>
+                                    <tr>
+                                        <th>Script Name:</th>
+                                        <td id="script-name">Loading...</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Script Path:</th>
+                                        <td id="script-path">Loading...</td>
+                                    </tr>
+                                    <tr>
+                                        <th>AWS Profile:</th>
+                                        <td id="aws-profile">Loading...</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Started By:</th>
+                                        <td id="started-by">Loading...</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Parameters:</th>
+                                        <td id="script-parameters">Loading...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <table class="table table-sm">
+                                <tbody>
+                                    <tr>
+                                        <th>Start Time:</th>
+                                        <td id="start-time">Loading...</td>
+                                    </tr>
+                                    <tr>
+                                        <th>End Time:</th>
+                                        <td id="end-time">Loading...</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Duration:</th>
+                                        <td id="duration">Loading...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Output</h5>
+                </div>
+                <div class="card-body">
+                    <div id="execution-output">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p>Loading output...</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="interactive-input-container" class="card mb-4" style="display: none;">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Interactive Input</h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info mb-3">
+                        This script requires input. Enter your response below and press Enter or click Send.
+                    </div>
+                    <div class="input-group">
+                        <input type="text" id="interactive-input" class="form-control" placeholder="Enter your input here...">
+                        <button class="btn btn-primary" type="button" id="send-input-btn">Send</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="ai-help-container" class="card mb-4" style="display: none;">
+                <div class="card-header bg-warning">
+                    <h5 class="mb-0">AI Analysis</h5>
+                </div>
+                <div class="card-body">
+                    <div id="ai-help-content">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">Loading AI analysis...</span>
+                        </div>
+                        <p>Getting AI assistance for this error...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Variables for data storage
+    let executionId = null;
+    socket = null;
+    let executionData = null;
+    let loadingTimeout = null;
+    let retryCount = 0;
+    const MAX_RETRIES = 3;
+    let isScriptComplete = false;
+    
+    // ====== MAIN FUNCTIONS ======
+    
+    /**
+     * Extracts the execution ID from the URL and initializes the page
+     */
+    function initializePage() {
+        console.log("Initializing execution details page...");
+        
+        // Extract ID from URL
+        const pathParts = window.location.pathname.split('/');
+        const id = parseInt(pathParts[pathParts.length - 1]);
+        
+        // Verify that the ID is a number
+        if (isNaN(id)) {
+            showError("Invalid execution ID in URL");
+            return;
+        }
+        
+        executionId = id;
+        console.log(`Execution ID: ${executionId}`);
+        
+        // Load data
+        loadExecutionDetails(executionId);
+        
+        // Initialize socket connection
+        initializeSocketConnection();
+        
+        // Bind click handler to the cancel button directly
+        const cancelBtn = document.getElementById('cancel-execution-btn');
+        if (cancelBtn) {
+            console.log("Found cancel-execution-btn, binding click handler directly");
+            // Clear existing handlers if any
+            cancelBtn.removeEventListener('click', cancelExecution);
+            // Add direct click handler
+            cancelBtn.addEventListener('click', cancelExecution);
+            console.log("Cancel button click handler bound directly");
+        } else {
+            console.log("cancel-execution-btn not found at page load");
+        }
+        
+        // Bind handler to the input send button
+        const sendButton = document.getElementById('send-input-btn');
+        if (sendButton) {
+            console.log("Found send-input-btn, adding click handler");
+            sendButton.addEventListener('click', sendInput);
+        }
+        
+        // Bind Enter key press handler for the input field
+        const inputField = document.getElementById('interactive-input');
+        if (inputField) {
+            inputField.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    sendInput();
+                }
+            });
+        }
+        
+        // Update duration for running scripts
+        setInterval(() => {
+            if (executionData?.status === 'Running') {
+                const durationText = calculateDuration(
+                    executionData.start_time,
+                    executionData.end_time,
+                    executionData.status
+                );
+                setElementText('duration', durationText);
+            }
+        }, 1000);
+    }
+    
+    /**
+     * Loads script execution details from the server
+     */
+    function loadExecutionDetails(id, isRetry = false) {
+        console.log(`Loading execution details ID=${id} (attempt: ${retryCount + 1})`);
+        
+        // Show loading indicator
+        showLoadingState();
+        
+        // Set timeout for data loading
+        loadingTimeout = setTimeout(() => {
+            if (retryCount < MAX_RETRIES) {
+                console.log(`Data loading timeout. Retry attempt ${retryCount + 1}/${MAX_RETRIES}`);
+                retryCount++;
+                loadExecutionDetails(id, true);
+            } else {
+                showError("Server response timeout exceeded");
+            }
+        }, 15000); // Increased timeout to 15 seconds
+        
+        // Send request
+        fetch(`/api/execution_details/${id}`)
+            .then(response => {
+                // Cancel timeout since we received a response
+                clearTimeout(loadingTimeout);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log("API response received:", data);
+                
+                if (data.success && data.execution) {
+                    // Reset retry counter
+                    retryCount = 0;
+                    
+                    // Save data
+                    executionData = data.execution;
+                    
+                    // Fully update interface
+                    updateUI(data.execution);
+
+                    // If script is still running, continue updates
+                    if (data.execution.status === 'Running') {
+                        // Set update interval for running scripts
+                        if (!window.executionUpdateInterval) {
+                            window.executionUpdateInterval = setInterval(() => {
+                                loadExecutionDetails(id);
+                            }, 5000); // Update every 5 seconds
+                        }
+                    } else {
+                        // Clear interval if script is completed
+                        if (window.executionUpdateInterval) {
+                            clearInterval(window.executionUpdateInterval);
+                            window.executionUpdateInterval = null;
+                        }
+                    }
+                } else {
+                    throw new Error(data.message || "Data not received");
+                }
+            })
+            .catch(error => {
+                // Cancel timeout since we received an error
+                clearTimeout(loadingTimeout);
+                
+                console.error('Data loading error:', error);
+                
+                if (retryCount < MAX_RETRIES && !isRetry) {
+                    console.log(`Loading error. Retry attempt ${retryCount + 1}/${MAX_RETRIES}`);
+                    retryCount++;
+                    
+                    // Delay before retry
+                    setTimeout(() => {
+                        loadExecutionDetails(id, true);
+                    }, 2000); // 2 seconds before retry
+                } else {
+                    showError(`Data loading error: ${error.message}`);
+                }
+            });
+    }
+    
+    /**
+     * Updates the interface with received data
+     */
+     function updateUI(execution) {
+        document.getElementById('interactive-input-container').style.display = 'none';
+        console.log("Updating interface with execution data...");
+        
+        try {
+            // Update script information
+            setElementText('script-name', execution.script_name);
+            setElementText('script-path', execution.script_path);
+            setElementText('aws-profile', execution.aws_profile_name);
+            setElementText('started-by', execution.username || 'Unknown');
+            
+            // Update execution time information
+            setElementText('start-time', formatDateTime(execution.start_time) || 'Not started');
+            setElementText('end-time', formatDateTime(execution.end_time) || 'Not completed');
+            
+            // Display script parameters if available
+            displayScriptParameters(execution.parameters);
+            
+            // Calculate and display duration
+            const durationText = calculateDuration(execution.start_time, execution.end_time, execution.status);
+            setElementText('duration', durationText);
+            
+            // Update status
+            updateStatusBadge(execution.status);
+            
+            // Toggle cancel button based on status
+            toggleCancelButton(execution.status);
+            
+            // Update output
+            updateOutputDisplay(execution.output);
+            
+            // Show AI help for failed executions
+            if (execution.status === 'Failed') {
+                document.getElementById('ai-help-container').style.display = 'block';
+                loadAiHelp(execution.id);
+            } else {
+                document.getElementById('ai-help-container').style.display = 'none';
+            }
+            
+            console.log("Interface successfully updated");
+        } catch (error) {
+            console.error("Error updating interface:", error);
+            showError(`Error updating interface: ${error.message}`);
+        }
+    }
+    
+    /**
+     * Initializes WebSocket connection
+     */
+     function initializeSocketConnection() {
+        console.log("Initializing Socket.IO connection for execution details...");
+        
+        try {
+            window.socket = io();
+            
+            // Log connection events
+            socket.on('connect', () => {
+                console.log('Socket.IO connection established');
+            });
+            
+            socket.on('connect_error', (error) => {
+                console.error('Socket.IO connection error:', error);
+            });
+            
+            socket.on('disconnect', () => {
+                console.log('Socket.IO connection disconnected. Reconnecting...');
+            });
+            
+            // Handle status updates
+            socket.on('script_status_update', (data) => {
+                console.log('[socket] Status update received:', data);
+                
+                // Check if this update is for the current execution
+                if (data.execution_id == executionId) {
+                    console.log(`[socket] Update for current execution ${executionId}`);
+                    
+                    // If no execution data yet, load it
+                    if (!executionData) {
+                        loadExecutionDetails(executionId);
+                        return;
+                    }
+                    
+                    // Update local data
+                    executionData.status = data.status;
+                    if (data.status !== 'Running') {
+                        executionData.end_time = new Date().toISOString();
+                    }
+                    
+                    // Update UI
+                    updateStatusBadge(data.status);
+                    
+                    // Update duration if needed
+                    if (data.status !== 'Running') {
+                        const durationText = calculateDuration(
+                            executionData.start_time,
+                            executionData.end_time,
+                            executionData.status
+                        );
+                        setElementText('duration', durationText);
+                    }
+                    
+                    // For completed executions, reload complete data
+                    if (['Success', 'Failed', 'Cancelled'].includes(data.status)) {
+                        console.log(`[socket] Execution ${executionId} finished. Updating data.`);
+                        
+                        // Slight delay for server to update database
+                        setTimeout(() => {
+                            loadExecutionDetails(executionId);
+                        }, 500);
+                    }
+                }
+            });
+            
+            // Handle output updates
+            socket.on('script_output_update', (data) => {
+                console.log('[socket] Output update received');
+                
+                if (data.execution_id == executionId) {
+                    // Add new output
+                    appendOutput(data.output);
+                }
+            });
+            
+            console.log("Socket.IO handlers set up successfully");
+        } catch (error) {
+            console.error("Error initializing Socket.IO:", error);
+        }
+    }
+
+    
+    // ====== HELPER FUNCTIONS ======
+    
+    /**
+     * Sends interactive input to the script
+     */
+    function sendInput() {
+        const input = document.getElementById('interactive-input').value;
+        if (!input) return;
+        
+        console.log(`Sending input for execution ID=${executionId}:`, input);
+        
+        // Clear input field
+        document.getElementById('interactive-input').value = '';
+        
+        // Add input to output
+        appendOutput(`\n[INPUT] ${input}\n`);
+        
+        // Send input to server
+        socket.emit('send_input', {
+            execution_id: executionId,
+            input: input
+        });
+    }
+    
+    /**
+     * Shows or hides container for interactive input
+     */
+    function toggleInteractiveInput(show, status) {
+        const container = document.getElementById('interactive-input-container');
+        
+        if (show && status === 'Running') {
+            container.style.display = 'block';
+        } else {
+            container.style.display = 'none';
+        }
+    }
+    
+    /**
+     * Shows input container and focuses on input field
+     */
+     function showInteractiveInput() {
+        // Function disabled as we no longer support interactive input
+        console.log("Interactive input is no longer supported");
+    }
+    
+    /**
+     * Loads AI help for failed execution
+     */
+     function loadAiHelp(executionId) {
+        console.log(`Loading AI help for execution ID=${executionId}`);
+        
+        fetch(`/api/ai_help/${executionId}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    // If AI help is disabled, show notification
+                    if (data.ai_help && data.ai_help.startsWith("AI assistance is disabled")) {
+                        document.getElementById('ai-help-content').innerHTML = `
+                            <div class="alert alert-info">
+                                <i class="ti ti-info-circle me-2"></i>
+                                ${data.ai_help}
+                            </div>
+                            <div class="text-center mt-3">
+                                <a href="/settings" class="btn btn-sm btn-outline-primary">
+                                    <i class="ti ti-settings me-1"></i>Go to Settings
+                                </a>
+                            </div>
+                        `;
+                    } else {
+                        // Normal analysis output
+                        document.getElementById('ai-help-content').innerHTML = `
+                            <h6>Error Analysis:</h6>
+                            <div class="card mb-3">
+                                <div class="card-body">
+                                    ${data.ai_help || 'Analysis not available.'}
+                                </div>
+                            </div>
+                            <h6>Suggested Solution:</h6>
+                            <div class="card">
+                                <div class="card-body">
+                                    ${data.solution || 'No solution suggested.'}
+                                </div>
+                            </div>
+                        `;
+                    }
+                } else {
+                    document.getElementById('ai-help-content').innerHTML = `
+                        <div class="alert alert-warning">
+                            ${data.message || 'AI help is not available for this execution.'}
+                        </div>
+                    `;
+                }
+            })
+            .catch(error => {
+                console.error("Error loading AI help:", error);
+                document.getElementById('ai-help-content').innerHTML = `
+                    <div class="alert alert-danger">
+                        An error occurred while retrieving AI analysis. Please try again later.
+                    </div>
+                `;
+            });
+    }
+    
+    /**
+     * Shows loading state
+     */
+    function showLoadingState() {
+        document.getElementById('execution-status-badge').innerHTML = `
+            <div class="spinner-border spinner-border-sm" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <span>Loading status...</span>
+        `;
+        
+        document.getElementById('execution-output').innerHTML = `
+            <div class="d-flex justify-content-center my-3">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <span class="ms-2">Loading output...</span>
+            </div>
+        `;
+    }
+    
+    /**
+     * Shows error message
+     */
+    function showError(message) {
+        console.error(message);
+        
+        document.getElementById('execution-status-badge').innerHTML = `
+            <span class="badge bg-danger">Error</span>
+        `;
+        
+        document.getElementById('execution-output').innerHTML = `
+            <div class="alert alert-danger">
+                <i class="ti ti-alert-circle me-2"></i>${message}
+            </div>
+            <div class="mt-3">
+                <button class="btn btn-primary" onclick="retryLoad()">
+                    <i class="ti ti-refresh me-1"></i>Retry loading
+                </button>
+            </div>
+        `;
+    }
+    
+    /**
+     * Retries data loading
+     */
+    function retryLoad() {
+        retryCount = 0;
+        loadExecutionDetails(executionId);
+    }
+    
+    /**
+     * Updates execution status
+     */
+     function updateStatusBadge(status) {
+        const statusBadge = document.getElementById('execution-status-badge');
+        if (!statusBadge) return;
+        
+        let badgeClass = '';
+        let badgeText = status;
+
+        switch (status) {
+            case 'Running':
+                badgeClass = 'badge-running';
+                badgeText = `<span class="live-dot"></span> Running`;
+                break;
+            case 'Success':
+                badgeClass = 'bg-success';
+                break;
+            case 'Failed':
+                badgeClass = 'bg-danger';
+                break;
+            case 'Cancelled':
+                badgeClass = 'bg-warning';
+                badgeText = `<i class="ti ti-ban me-1"></i>Cancelled`;
+                break;
+            case 'Pending':
+                badgeClass = 'bg-secondary';
+                break;
+            default:
+                badgeClass = 'bg-secondary';
+        }
+
+        statusBadge.innerHTML = `<span class="badge ${badgeClass}">${badgeText}</span>`;
+        
+        // Also update the cancel button visibility
+        toggleCancelButton(status);
+    }
+
+    /**
+     * Updates output display
+     */
+    function updateOutputDisplay(output) {
+        const outputContainer = document.getElementById('execution-output');
+        
+        if (output) {
+            outputContainer.innerHTML = `
+                <pre class="bg-dark text-light p-3" style="max-height: 500px; overflow-y: auto;">${output}</pre>
+            `;
+        } else {
+            outputContainer.innerHTML = `
+                <p class="text-muted">Output not available yet.</p>
+            `;
+        }
+    }
+    
+    /**
+     * Appends new output to existing output
+     */
+    function appendOutput(newOutput) {
+        const outputContainer = document.getElementById('execution-output');
+        const preElement = outputContainer.querySelector('pre');
+        
+        if (preElement) {
+            // Add new output
+            preElement.textContent += newOutput;
+            // Scroll down
+            preElement.scrollTop = preElement.scrollHeight;
+        } else {
+            // Create output element
+            updateOutputDisplay(newOutput);
+        }
+    }
+    
+    /**
+     * Sets text for element by id
+     */
+    function setElementText(elementId, text) {
+        const element = document.getElementById(elementId);
+        if (element) {
+            element.textContent = text || '-';
+        }
+    }
+    
+    /**
+     * Formats date and time
+     */
+    function formatDateTime(dateString) {
+        if (!dateString) return null;
+        
+        try {
+            const date = new Date(dateString);
+            return date.toLocaleString();
+        } catch (e) {
+            console.error("Time formatting error:", e);
+            return dateString;
+        }
+    }
+    
+    /**
+     * Calculates execution duration
+     */
+    function calculateDuration(startTime, endTime, status) {
+        if (!startTime) return '-';
+        
+        try {
+            const start = new Date(startTime);
+            
+            if (endTime) {
+                // If end time exists, calculate difference
+                const end = new Date(endTime);
+                const diff = Math.floor((end - start) / 1000);
+                
+                const minutes = Math.floor(diff / 60);
+                const seconds = diff % 60;
+                return `${minutes}m ${seconds}s`;
+            } else if (status === 'Running') {
+                // For running scripts, calculate time since start
+                const now = new Date();
+                const diff = Math.floor((now - start) / 1000);
+                
+                const minutes = Math.floor(diff / 60);
+                const seconds = diff % 60;
+                return `${minutes}m ${seconds}s (running)`;
+            }
+            
+            return '-';
+        } catch (e) {
+            console.error("Duration calculation error:", e);
+            return '-';
+        }
+    }
+    
+    // Initialize page on load
+    document.addEventListener('DOMContentLoaded', initializePage);
+    
+    // Make retry function globally available
+    window.retryLoad = retryLoad;
+
+    /**
+     * Shows or hides the cancel button based on execution status
+     */
+     function toggleCancelButton(status) {
+        const actionsContainer = document.getElementById('execution-actions');
+        if (!actionsContainer) return;
+        
+        if (status === 'Running') {
+            actionsContainer.style.display = 'block';
+        } else {
+            actionsContainer.style.display = 'none';
+        }
+    }
+
+    /**
+     * Cancels the current execution
+     */
+     function cancelExecution() {
+        console.log(`cancelExecution called, executionId = ${executionId}`);
+        
+        if (!executionId) {
+            console.error("No executionId available!");
+            return;
+        }
+        
+        if (!confirm('Are you sure you want to cancel this execution?')) {
+            console.log("Cancellation aborted by user");
+            return;
+        }
+        
+        console.log(`Sending cancel request to: /api/cancel_execution/${executionId}`);
+        
+        // Show spinner on cancel button
+        const cancelBtn = document.getElementById('cancel-execution-btn');
+        const originalBtnText = cancelBtn.innerHTML;
+        cancelBtn.innerHTML = '<i class="ti ti-loader ti-spin me-1"></i>Cancelling...';
+        cancelBtn.disabled = true;
+        
+        fetch(`/api/cancel_execution/${executionId}`, {
+            method: 'POST'
+        })
+        .then(response => {
+            console.log("Got response:", response);
+            return response.json();
+        })
+        .then(data => {
+            console.log("Cancel response data:", data);
+            cancelBtn.innerHTML = originalBtnText;
+            cancelBtn.disabled = false;
+            
+            if (data.success) {
+                // Update execution status locally
+                if (executionData) {
+                    executionData.status = 'Cancelled';
+                    
+                    // Update UI with new status
+                    updateStatusBadge('Cancelled');
+                    
+                    // Hide cancel button
+                    toggleCancelButton('Cancelled');
+                }
+                
+                // Reload execution details to get latest data
+                loadExecutionDetails(executionId);
+            } else {
+                alert(`Error: ${data.message}`);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            cancelBtn.innerHTML = originalBtnText;
+            cancelBtn.disabled = false;
+            alert('An error occurred while cancelling the execution.');
+        });
+    }
+
+    function displayScriptParameters(parametersJSON) {
+        const parametersElement = document.getElementById('script-parameters');
+        
+        if (!parametersJSON || parametersJSON === 'null') {
+            parametersElement.textContent = 'No parameters';
+            return;
+        }
+        
+        try {
+            const parameters = JSON.parse(parametersJSON);
+            
+            if (Object.keys(parameters).length === 0) {
+                parametersElement.textContent = 'No parameters';
+                return;
+            }
+            
+            // Create a formatted display of parameters
+            const paramTable = document.createElement('table');
+            paramTable.className = 'table table-sm table-borderless mb-0';
+            
+            for (const [key, value] of Object.entries(parameters)) {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td><strong>${key}:</strong></td>
+                    <td>${value || '<em>empty</em>'}</td>
+                `;
+                paramTable.appendChild(row);
+            }
+            
+            parametersElement.innerHTML = '';
+            parametersElement.appendChild(paramTable);
+        } catch (e) {
+            console.error('Error parsing parameters:', e);
+            parametersElement.textContent = 'Error parsing parameters';
+        }
+    }
+</script>
+{% endblock %}

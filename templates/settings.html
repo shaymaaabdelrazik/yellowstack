@@ -1,0 +1,629 @@
+<!-- templates/settings.html -->
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1>Settings</h1>
+        
+        <!-- Add a styled wrapper for tabs -->
+        <div class="tabs-style-1">
+            <ul class="nav nav-tabs" id="settingsTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="aws-tab" data-bs-toggle="tab" data-bs-target="#aws-profiles" 
+                            type="button" role="tab" aria-controls="aws-profiles" aria-selected="true">
+                        AWS Profiles
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="app-tab" data-bs-toggle="tab" data-bs-target="#app-settings" 
+                            type="button" role="tab" aria-controls="app-settings" aria-selected="false">
+                        Application Settings
+                    </button>
+                </li>
+            </ul>
+            
+            <div class="tab-content mt-4" id="settingsTabContent">
+                <!-- AWS Profiles Tab -->
+                <div class="tab-pane fade show active" id="aws-profiles" role="tabpanel" aria-labelledby="aws-tab">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h2>AWS Credential Profiles</h2>
+                        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addProfileModal">
+                            Add New Profile
+                        </button>
+                    </div>
+                    
+                    <div id="aws-profiles-list">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p>Loading AWS profiles...</p>
+                    </div>
+                </div>
+                
+                <!-- Application Settings Tab -->
+                <div class="tab-pane fade" id="app-settings" role="tabpanel" aria-labelledby="app-tab">
+                    <h2>Application Settings</h2>
+                    
+                    <form id="appSettingsForm" class="mt-4">
+                        <div class="mb-3">
+                            <label for="openaiApiKey" class="form-label">OpenAI API Key</label>
+                            <div class="input-group">
+                                <input type="password" class="form-control" id="openaiApiKey">
+                                <button class="btn btn-outline-secondary" type="button" id="toggleApiKeyBtn">
+                                    <i class="ti ti-eye"></i>
+                                </button>
+                            </div>
+                            <div class="form-text">Used for AI assistance with error analysis</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="enableAiHelp">
+                                <span class="form-check-label">Enable AI assistance for error analysis</span>
+                            </label>
+                            <div class="form-text text-muted">
+                                When enabled, AI will help analyze script execution errors. 
+                                Disable this if you don't have an OpenAI API key or prefer not to use AI assistance.
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="historyLimit" class="form-label">Execution History Limit</label>
+                            <input type="number" class="form-control" id="historyLimit" min="5" max="100">
+                            <div class="form-text">Number of executions to show in history (default: 10)</div>
+                        </div>
+
+                        
+                        <button type="button" class="btn btn-primary" id="saveSettingsBtn">Save Settings</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for adding new AWS profile -->
+<div class="modal fade" id="addProfileModal" tabindex="-1" aria-labelledby="addProfileModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addProfileModalLabel">Add New AWS Profile</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addProfileForm">
+                    <input type="hidden" id="profileId" value="">
+                    
+                    <div class="mb-3">
+                        <label for="profileName" class="form-label">Profile Name</label>
+                        <input type="text" class="form-control" id="profileName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="awsAccessKey" class="form-label">AWS Access Key</label>
+                        <input type="text" class="form-control" id="awsAccessKey" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="awsSecretKey" class="form-label">AWS Secret Key</label>
+                        <input type="password" class="form-control" id="awsSecretKey" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="awsRegion" class="form-label">AWS Region</label>
+                        <select class="form-select" id="awsRegion" required>
+                            <!-- Will be populated dynamically with JavaScript -->
+                        </select>
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="isDefaultProfile">
+                        <label class="form-check-label" for="isDefaultProfile">
+                            Set as default profile
+                        </label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="saveProfileBtn">Save Profile</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Custom confirmation modal for delete operations -->
+<div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-labelledby="deleteConfirmModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteConfirmModalLabel">Delete Confirmation</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="deleteItemId">
+                <p id="deleteConfirmMessage">Are you sure you want to delete this item?</p>
+                <p class="text-danger">This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">
+                    <i class="ti ti-trash me-1"></i>Delete
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // AWS Regions List
+    const awsRegions = [
+        { id: "us-east-1", name: "US East (N. Virginia)" },
+        { id: "us-east-2", name: "US East (Ohio)" },
+        { id: "us-west-1", name: "US West (N. California)" },
+        { id: "us-west-2", name: "US West (Oregon)" },
+        { id: "af-south-1", name: "Africa (Cape Town)" },
+        { id: "ap-east-1", name: "Asia Pacific (Hong Kong)" },
+        { id: "ap-south-1", name: "Asia Pacific (Mumbai)" },
+        { id: "ap-northeast-1", name: "Asia Pacific (Tokyo)" },
+        { id: "ap-northeast-2", name: "Asia Pacific (Seoul)" },
+        { id: "ap-northeast-3", name: "Asia Pacific (Osaka)" },
+        { id: "ap-southeast-1", name: "Asia Pacific (Singapore)" },
+        { id: "ap-southeast-2", name: "Asia Pacific (Sydney)" },
+        { id: "ap-southeast-3", name: "Asia Pacific (Jakarta)" },
+        { id: "ca-central-1", name: "Canada (Central)" },
+        { id: "eu-central-1", name: "Europe (Frankfurt)" },
+        { id: "eu-west-1", name: "Europe (Ireland)" },
+        { id: "eu-west-2", name: "Europe (London)" },
+        { id: "eu-west-3", name: "Europe (Paris)" },
+        { id: "eu-north-1", name: "Europe (Stockholm)" },
+        { id: "eu-south-1", name: "Europe (Milan)" },
+        { id: "me-south-1", name: "Middle East (Bahrain)" },
+        { id: "sa-east-1", name: "South America (São Paulo)" }
+    ];
+
+    // Function to populate the region dropdown
+    function populateRegionDropdown(selectedRegion = null) {
+        const regionSelect = document.getElementById('awsRegion');
+        
+        // Clear existing options
+        regionSelect.innerHTML = '';
+        
+        // Add regions to dropdown
+        awsRegions.forEach(region => {
+            const option = document.createElement('option');
+            option.value = region.id;
+            option.textContent = `${region.id} - ${region.name}`;
+            
+            // If editing a profile, select the current region
+            if (selectedRegion && region.id === selectedRegion) {
+                option.selected = true;
+            }
+            // Otherwise set US East (N. Virginia) as default
+            else if (!selectedRegion && region.id === 'us-east-1') {
+                option.selected = true;
+            }
+            
+            regionSelect.appendChild(option);
+        });
+    }
+
+    // Load AWS profiles
+    function loadAwsProfiles() {
+        fetch('/api/aws_profiles')
+            .then(response => response.json())
+            .then(data => {
+                const container = document.getElementById('aws-profiles-list');
+                container.innerHTML = '';
+                
+                if (data.profiles.length === 0) {
+                    container.innerHTML = '<div class="alert alert-info">No AWS profiles configured yet. Click the "Add New Profile" button to create one.</div>';
+                    return;
+                }
+                
+                const table = document.createElement('table');
+                table.className = 'table';
+                table.innerHTML = `
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Access Key</th>
+                            <th>Region</th>
+                            <th>Default</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    </tbody>
+                `;
+                
+                const tbody = table.querySelector('tbody');
+                
+                data.profiles.forEach(profile => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${profile.name}</td>
+                        <td>${profile.aws_access_key.substring(0, 4)}...${profile.aws_access_key.substring(profile.aws_access_key.length - 4)}</td>
+                        <td>${profile.aws_region}</td>
+                        <td>${profile.is_default ? '<span class="badge bg-success">Default</span>' : ''}</td>
+                        <td>
+                            <button class="btn btn-sm btn-primary edit-profile" data-profile-id="${profile.id}">
+                                Edit
+                            </button>
+                            <button class="btn btn-sm btn-danger delete-profile" data-profile-id="${profile.id}">
+                                Delete
+                            </button>
+                            ${!profile.is_default ? 
+                              `<button class="btn btn-sm btn-outline-success set-default" data-profile-id="${profile.id}">
+                                  Set Default
+                               </button>` : ''}
+                        </td>
+                    `;
+                    
+                    tbody.appendChild(row);
+                });
+                
+                container.appendChild(table);
+                
+                // Add event listeners for edit buttons
+                document.querySelectorAll('.edit-profile').forEach(button => {
+                    button.addEventListener('click', function() {
+                        const profileId = this.getAttribute('data-profile-id');
+                        editProfile(profileId);
+                    });
+                });
+                
+                // Add event listeners for delete buttons
+                document.querySelectorAll('.delete-profile').forEach(button => {
+                    button.addEventListener('click', function() {
+                        const profileId = this.getAttribute('data-profile-id');
+                        deleteProfile(profileId);
+                    });
+                });
+                
+                // Add event listeners for set default buttons
+                document.querySelectorAll('.set-default').forEach(button => {
+                    button.addEventListener('click', function() {
+                        const profileId = this.getAttribute('data-profile-id');
+                        setDefaultProfile(profileId);
+                    });
+                });
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showToast('Error loading AWS profiles', 'error');
+            });
+    }
+    
+    // Load app settings
+    function loadAppSettings() {
+        fetch('/api/settings')
+            .then(response => response.json())
+            .then(data => {
+                if (data.settings) {
+                    document.getElementById('openaiApiKey').value = data.settings.openai_api_key || '';
+                    document.getElementById('historyLimit').value = data.settings.history_limit || 10;
+                    
+                    // Load AI switch state - if setting is explicitly 'true' then enable, otherwise disable
+                    const aiEnabled = data.settings.enable_ai_help === 'true';
+                    document.getElementById('enableAiHelp').checked = aiEnabled;
+                    
+                    // If AI is disabled, make the API key field inactive
+                    document.getElementById('openaiApiKey').disabled = !aiEnabled;
+                    
+                    // ORM mode is now always enabled by default
+                }
+            })
+            .catch(error => {
+                console.error('Error loading application settings:', error);
+                showToast('Error loading application settings', 'error');
+            });
+    }
+    
+    // Save app settings
+    function saveAppSettings() {
+        const openaiApiKey = document.getElementById('openaiApiKey').value;
+        const historyLimit = document.getElementById('historyLimit').value;
+        const enableAiHelp = document.getElementById('enableAiHelp').checked;
+        
+        // Show loading indicator on the button
+        const saveBtn = document.getElementById('saveSettingsBtn');
+        const originalBtnText = saveBtn.innerHTML;
+        saveBtn.innerHTML = '<i class="ti ti-loader ti-spin me-1"></i>Saving...';
+        saveBtn.disabled = true;
+        
+        fetch('/api/settings', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                openai_api_key: openaiApiKey,
+                history_limit: historyLimit,
+                enable_ai_help: enableAiHelp.toString(),
+                use_orm_mode: '1' // Always enabled
+            }),
+        })
+        .then(response => response.json())
+        .then(data => {
+            // Restore button
+            saveBtn.innerHTML = originalBtnText;
+            saveBtn.disabled = false;
+            
+            if (data.success) {
+                // Show modern notification instead of alert
+                showToast('Settings saved successfully!', 'success');
+                
+                // Update API key field state based on setting
+                document.getElementById('openaiApiKey').disabled = !enableAiHelp;
+            } else {
+                showToast(data.message || 'An error occurred', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error saving settings:', error);
+            saveBtn.innerHTML = originalBtnText;
+            saveBtn.disabled = false;
+            showToast('An error occurred while saving settings', 'error');
+        });
+    }
+    
+    // Edit profile
+    function editProfile(profileId) {
+        fetch(`/api/aws_profiles/${profileId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.profile) {
+                    document.getElementById('profileId').value = data.profile.id;
+                    document.getElementById('profileName').value = data.profile.name;
+                    document.getElementById('awsAccessKey').value = data.profile.aws_access_key;
+                    document.getElementById('awsSecretKey').value = data.profile.aws_secret_key;
+                    
+                    // Populate region dropdown and select current region
+                    populateRegionDropdown(data.profile.aws_region);
+                    
+                    document.getElementById('isDefaultProfile').checked = data.profile.is_default === 1;
+                    
+                    // Update modal title
+                    document.getElementById('addProfileModalLabel').textContent = 'Edit AWS Profile';
+                    
+                    // Show the modal
+                    const modal = new bootstrap.Modal(document.getElementById('addProfileModal'));
+                    modal.show();
+                } else {
+                    showToast('Error: ' + data.message, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showToast('An error occurred while loading profile data.', 'error');
+            });
+    }
+    
+    // Delete profile - using custom modal dialog
+    function deleteProfile(profileId) {
+        // Set up the confirmation dialog
+        document.getElementById('deleteItemId').value = profileId;
+        document.getElementById('deleteConfirmMessage').textContent = 'Are you sure you want to delete this AWS profile?';
+        
+        // Show the modal
+        const confirmModal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
+        confirmModal.show();
+        
+        // Set up confirmation button handler
+        document.getElementById('confirmDeleteBtn').onclick = function() {
+            // Hide the modal
+            confirmModal.hide();
+            
+            // Show loading indicator
+            const container = document.getElementById('aws-profiles-list');
+            if (container) {
+                container.innerHTML = `
+                    <div class="d-flex justify-content-center my-4">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Deleting...</span>
+                        </div>
+                        <span class="ms-2">Deleting profile...</span>
+                    </div>
+                `;
+            }
+            
+            // Send delete request
+            fetch(`/api/aws_profiles/${profileId}`, {
+                method: 'DELETE',
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(data => {
+                        throw new Error(data.message || 'Error deleting profile');
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    loadAwsProfiles();
+                    showToast('Profile deleted successfully!', 'success');
+                } else {
+                    showToast(data.message || 'Error deleting profile', 'error');
+                    loadAwsProfiles(); // Reload anyway to show current state
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showToast(error.message || 'An error occurred while deleting the profile', 'error');
+                loadAwsProfiles(); // Reload anyway
+            });
+        };
+    }
+    
+    // Set default profile
+    function setDefaultProfile(profileId) {
+        fetch(`/api/aws_profiles/${profileId}/set_default`, {
+            method: 'POST',
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                loadAwsProfiles();
+                showToast('Default profile updated successfully!', 'success');
+            } else {
+                showToast(data.message || 'Error updating default profile', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showToast('An error occurred while setting the default profile', 'error');
+        });
+    }
+    
+    // Save AWS profile
+    function saveAwsProfile() {
+        const profileId = document.getElementById('profileId').value;
+        const name = document.getElementById('profileName').value;
+        const accessKey = document.getElementById('awsAccessKey').value;
+        const secretKey = document.getElementById('awsSecretKey').value;
+        const region = document.getElementById('awsRegion').value;
+        const isDefault = document.getElementById('isDefaultProfile').checked;
+        
+        if (!name || !accessKey || !secretKey || !region) {
+            showToast('All fields are required!', 'warning');
+            return;
+        }
+        
+        // Show loading indicator on the button
+        const saveBtn = document.getElementById('saveProfileBtn');
+        const originalBtnText = saveBtn.innerHTML;
+        saveBtn.innerHTML = '<i class="ti ti-loader ti-spin me-1"></i>Saving...';
+        saveBtn.disabled = true;
+        
+        const method = profileId ? 'PUT' : 'POST';
+        const url = profileId ? `/api/aws_profiles/${profileId}` : '/api/aws_profiles';
+        
+        fetch(url, {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                name: name,
+                aws_access_key: accessKey,
+                aws_secret_key: secretKey,
+                aws_region: region,
+                is_default: isDefault
+            }),
+        })
+        .then(response => response.json())
+        .then(data => {
+            // Restore button
+            saveBtn.innerHTML = originalBtnText;
+            saveBtn.disabled = false;
+            
+            if (data.success) {
+                // Close the modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('addProfileModal'));
+                modal.hide();
+                
+                // Reset the form
+                document.getElementById('addProfileForm').reset();
+                document.getElementById('profileId').value = '';
+                document.getElementById('addProfileModalLabel').textContent = 'Add New AWS Profile';
+                
+                // Reload the profiles list
+                loadAwsProfiles();
+                
+                // Show modern notification
+                showToast('Profile saved successfully!', 'success');
+            } else {
+                showToast(data.message || 'Error saving profile', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            saveBtn.innerHTML = originalBtnText;
+            saveBtn.disabled = false;
+            showToast('An error occurred while saving the profile', 'error');
+        });
+    }
+    
+    // Add event listeners when the DOM is loaded
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize the region dropdown
+        populateRegionDropdown();
+        
+        // Check if the showToast function is available
+        if (typeof showToast !== 'function') {
+            console.error('showToast function is not available!');
+            // Define fallback function
+            window.showToast = function(message, type) {
+                console.log(`Toast (${type}): ${message}`);
+                alert(message);
+            };
+        }
+        
+        // Load profiles and settings on page load
+        loadAwsProfiles();
+        loadAppSettings();
+        
+        // Add event listener for save profile button
+        document.getElementById('saveProfileBtn').addEventListener('click', saveAwsProfile);
+        
+        // Add event listener for save settings button
+        document.getElementById('saveSettingsBtn').addEventListener('click', saveAppSettings);
+        
+        // Reset profile form when modal is closed
+        document.getElementById('addProfileModal').addEventListener('hidden.bs.modal', function() {
+            document.getElementById('addProfileForm').reset();
+            document.getElementById('profileId').value = '';
+            document.getElementById('addProfileModalLabel').textContent = 'Add New AWS Profile';
+        });
+        
+        // Always populate region dropdown when modal is shown
+        document.getElementById('addProfileModal').addEventListener('shown.bs.modal', function() {
+            // Only populate if not already populated by editProfile
+            if (document.getElementById('profileId').value === '') {
+                populateRegionDropdown();
+            }
+        });
+        
+        // Fix for API Key toggle button - creating a new handler
+        const toggleApiKeyBtn = document.getElementById('toggleApiKeyBtn');
+        if (toggleApiKeyBtn) {
+            // Remove any existing event listeners by cloning the element
+            const newToggleBtn = toggleApiKeyBtn.cloneNode(true);
+            toggleApiKeyBtn.parentNode.replaceChild(newToggleBtn, toggleApiKeyBtn);
+            
+            // Add the event listener to the new button
+            newToggleBtn.addEventListener('click', function() {
+                const input = document.getElementById('openaiApiKey');
+                const icon = this.querySelector('i');
+                
+                if (input && input.type === 'password') {
+                    input.type = 'text';
+                    icon.className = 'ti ti-eye-off';
+                } else if (input) {
+                    input.type = 'password';
+                    icon.className = 'ti ti-eye';
+                }
+            });
+        } else {
+            console.warn('API Key toggle button not found');
+        }
+
+        // AI toggle handler
+        const enableAiHelp = document.getElementById('enableAiHelp');
+        if (enableAiHelp) {
+            enableAiHelp.addEventListener('change', function() {
+                const apiKeyInput = document.getElementById('openaiApiKey');
+                
+                if (this.checked) {
+                    // Enable API key field
+                    if (apiKeyInput) apiKeyInput.disabled = false;
+                } else {
+                    // Disable API key field
+                    if (apiKeyInput) apiKeyInput.disabled = true;
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

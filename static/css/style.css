@@ -1,0 +1,556 @@
+/* static/css/style.css */
+
+.badge {
+    font-weight: 500;
+    padding: 0.35em 0.65em;
+    display: inline-flex;
+    align-items: center;
+    border-radius: 4px;
+  }
+  
+  /* Status-specific styles */
+  /* 1. Running status - green with pulse animation */
+  .badge[class*="running"],
+  .badge-running,
+  .badge.badge-running,
+  .badge[data-status="Running"] {
+    background-color: #e6f4ea;
+    color: #28a745;
+    border: 1px solid #28a745;
+  }
+  
+  /* Live dot animation */
+  .live-dot {
+    height: 8px;
+    width: 8px;
+    background-color: #28a745;
+    border-radius: 50%;
+    display: inline-block;
+    animation: pulse 1.5s infinite;
+    margin-right: 6px;
+  }
+  
+  /* 2. Success status - solid green */
+  .badge.bg-success,
+  .badge[data-status="Success"] {
+    background-color: #2fb344;
+    color: #fff;
+  }
+  
+  /* 3. Failed status - red */
+  .badge.bg-danger,
+  .badge[data-status="Failed"] {
+    background-color: #d63939;
+    color: #fff;
+  }
+  
+  /* 4. Cancelled status - orange/yellow */
+  .badge.bg-warning,
+  .badge[data-status="Cancelled"] {
+    background-color: #f59f00;
+    color: #fff;
+  }
+  
+  /* 5. Pending status - gray */
+  .badge.bg-secondary,
+  .badge[data-status="Pending"] {
+    background-color: #6c757d;
+    color: #fff;
+  }
+  
+  /* Animation for the pulse effect */
+  @keyframes pulse {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.5); opacity: 0.5; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+
+/* Code blocks */
+pre {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    max-width: 100%;
+    width: 100%;
+    background-color: #1d273b;
+    color: #f8f9fa;
+    border-radius: 5px;
+    padding: 15px;
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+code {
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    padding: 2px 4px;
+    border-radius: 3px;
+}
+
+/* Fix for status badges text color in Tabler 1.2.0 */
+.badge.bg-secondary,
+[class*="+"] {
+    color: #fff !important; /* White text */
+    font-weight: 500 !important; /* Slightly bolder for better visibility */
+}
+
+/* Success badge */
+.badge.bg-success {
+    background-color: #2fb344 !important;
+    color: #fff !important; /* Force white text */
+}
+
+/* Failed/Error badge */
+.badge.bg-danger {
+    background-color: #d63939 !important;
+    color: #fff !important; /* Force white text */
+}
+
+/* Running badge */
+.badge.bg-primary {
+    background-color: #206bc4 !important;
+    color: #fff !important; /* Force white text */
+}
+
+/* Cancelled badge - already good, but ensuring consistency */
+.badge.bg-warning {
+    background-color: #f59f00 !important;
+    color: #fff !important; /* Force white text */
+}
+
+/* Make sure all status badges have consistent styling */
+.badge[class*="bg-"] {
+    font-weight: 500;
+    padding: 0.35em 0.65em;
+}
+
+/* Status badges customization for 1.0.0-19beta*/
+/* .badge.bg-primary {
+    background-color: #206bc4 !important;
+}
+
+.badge.bg-success {
+    background-color: #2fb344 !important;
+}
+
+.badge.bg-danger {
+    background-color: #d63939 !important;
+}
+
+.badge.bg-warning {
+    background-color: #f76707 !important;
+    color: #fff !important;
+} */
+
+/* Interactive input box styling */
+#interactive-input-container {
+    border: 2px solid #206bc4;
+    border-radius: 8px;
+}
+
+#interactive-input {
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+}
+
+/* Execution details container */
+.execution-details-container {
+    max-width: 100%;
+    width: 100%;
+    padding: 15px;
+}
+
+.execution-details-header {
+    padding: 10px 0;
+    margin-bottom: 20px;
+    border-bottom: 1px solid rgba(150, 150, 150, 0.2);
+    width: 100%;
+}
+
+/* Override for page wrapper in execution details */
+.execution-details-container .page-wrapper {
+    max-width: 100%;
+    width: 100%;
+}
+
+/* Pulsing live indicator */
+.live-dot {
+    height: 10px;
+    width: 10px;
+    background-color: #28a745;
+    border-radius: 50%;
+    display: inline-block;
+    animation: pulse 1s infinite;
+    margin-right: 6px;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.5); opacity: 0.5; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+.badge-running {
+    background-color: #e6f4ea;
+    color: #28a745;
+    border: 1px solid #28a745;
+    font-weight: 500;
+}
+
+/* Supplement the static/css/style.css file with these styles */
+
+/* Execution statistics chart */
+#execution-chart {
+    width: 100%;
+    height: 300px !important;
+    position: relative;
+}
+
+/* Period buttons for chart */
+.card-actions .btn-group .btn {
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    padding: 0.25rem 0.75rem;
+    font-size: 0.875rem;
+}
+
+.card-actions .btn-group .btn:not(.btn-primary) {
+    color: #666;
+    background-color: #f5f5f5;
+}
+
+.card-actions .btn-group .btn.btn-primary {
+    color: white;
+}
+
+/* Improvements for Dashboard cards */
+.card {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    border: none;
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: rgba(0, 0, 0, 0.02);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+/* Add these styles to style.css */
+
+/* Container for notifications */
+.toast-container {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 9999;
+}
+
+/* Styles for popup notifications */
+.toast {
+    background-color: #fff;
+    border-left: 4px solid #2fb344;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+    border-radius: 4px;
+    padding: 16px 20px;
+    margin-bottom: 10px;
+    min-width: 300px;
+    max-width: 400px;
+    display: flex;
+    align-items: center;
+    transform: translateX(120%);
+    transition: transform 0.3s ease-out;
+    opacity: 0;
+}
+
+.toast.show {
+    transform: translateX(0);
+    opacity: 1;
+}
+
+.toast.hide {
+    transform: translateX(120%);
+    opacity: 0;
+}
+
+.toast-icon {
+    margin-right: 12px;
+    font-size: 20px;
+    display: flex;
+}
+
+.toast-icon.success {
+    color: #2fb344;
+}
+
+.toast-icon.error {
+    color: #d63939;
+}
+
+.toast-icon.warning {
+    color: #f76707;
+}
+
+.toast-icon.info {
+    color: #206bc4;
+}
+
+.toast-content {
+    flex: 1;
+}
+
+.toast-title {
+    font-weight: 600;
+    margin-bottom: 4px;
+    color: #1a202c;
+}
+
+.toast-message {
+    color: #4a5568;
+    font-size: 0.9rem;
+}
+
+.toast-close {
+    color: #718096;
+    cursor: pointer;
+    padding: 4px;
+    line-height: 1;
+    margin-left: 8px;
+}
+
+.toast-close:hover {
+    color: #1a202c;
+}
+
+/* Animations for notifications */
+@keyframes toast-in {
+    from {
+        transform: translateX(120%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes toast-out {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateX(120%);
+        opacity: 0;
+    }
+}
+
+.live-update-indicator {
+    display: flex;
+    align-items: center;
+    font-size: 0.85rem;
+    color: #666;
+    margin-left: auto;
+    margin-right: 12px;
+  }
+  
+  .live-update-indicator .indicator-dot {
+    height: 8px;
+    width: 8px;
+    background-color: #28a745;
+    border-radius: 50%;
+    display: inline-block;
+    animation: pulse 1.5s infinite;
+    margin-right: 6px;
+  }
+  
+  /* Row highlight animation for new/updated executions */
+  @keyframes highlight-row {
+    0% { background-color: rgba(32, 107, 196, 0.2); }
+    100% { background-color: transparent; }
+  }
+  
+  tr.highlight-update {
+    animation: highlight-row 2s ease-out;
+  }
+  
+  /* Badge animation for changing status */
+  @keyframes badge-update {
+    0% { transform: scale(1.1); box-shadow: 0 0 0 rgba(33, 150, 243, 0.4); }
+    100% { transform: scale(1); box-shadow: 0 0 0 rgba(33, 150, 243, 0); }
+  }
+  
+  .badge.status-changed {
+    animation: badge-update 1s ease-out;
+  }
+  
+  /* Enhanced stat counter animations */
+  .stat-number {
+    transition: all 0.3s ease;
+  }
+  
+  .stat-number.changing {
+    animation: pulse-number 1s;
+  }
+  
+  @keyframes pulse-number {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+  }
+  
+  /* Live stats section indication */
+  .stats-card {
+    position: relative;
+  }
+  
+  .stats-card .live-badge {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    font-size: 0.75rem;
+    display: flex;
+    align-items: center;
+    background-color: rgba(40, 167, 69, 0.1);
+    color: #28a745;
+    padding: 4px 8px;
+    border-radius: 12px;
+    z-index: 10;
+  }
+  
+  .stats-card .live-badge .live-dot {
+    height: 6px;
+    width: 6px;
+    margin-right: 4px;
+  }
+
+  .tabs-style-1 .nav-tabs {
+    border-bottom: 1px solid rgba(150, 150, 150, 0.2);
+    margin-bottom: 0;
+    gap: 6px;
+}
+
+.tabs-style-1 .nav-tabs .nav-link {
+    color: #555;
+    background-color: #f8f9fa;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 8px 8px 0 0;
+    padding: 12px 20px;
+    font-weight: 500;
+    transition: all 0.05s ease-in-out; /* accelerated */
+    box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.03);
+    margin-bottom: -1px;
+}
+
+.tabs-style-1 .nav-tabs .nav-link:hover {
+    color: #206bc4;
+    background-color: #fff;
+    transform: translateY(-1px); /* smaller offset */
+}
+
+.tabs-style-1 .nav-tabs .nav-link.active {
+    color: #206bc4;
+    background-color: #fff;
+    border-bottom-color: #fff;
+    border-top: 2px solid #206bc4;
+    border-left: 1px solid rgba(0, 0, 0, 0.15);
+    border-right: 1px solid rgba(0, 0, 0, 0.15);
+    transform: translateY(-2px); /* smaller offset */
+    box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.06);
+    z-index: 5;
+}
+
+.tabs-style-1 #settingsTabContent {
+    background-color: #fff;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    padding: 25px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+}
+
+.badge.bg-warning {
+    background-color: #f59f00 !important;
+    color: #fff !important;
+}
+
+/* Cancel button style */
+.btn-outline-danger {
+    color: #d63939;
+    border-color: #d63939;
+}
+
+.btn-outline-danger:hover {
+    color: #fff;
+    background-color: #d63939;
+    border-color: #d63939;
+}
+
+/* Animation for cancel action */
+@keyframes cancel-pulse {
+    0% { box-shadow: 0 0 0 0 rgba(214, 57, 57, 0.4); }
+    70% { box-shadow: 0 0 0 10px rgba(214, 57, 57, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(214, 57, 57, 0); }
+}
+
+.cancel-execution-btn:focus {
+    animation: cancel-pulse 1.5s;
+}
+
+/* Update the badge running style */
+.badge-running {
+    background-color: #e6f4ea;
+    color: #28a745;
+    border: 1px solid #28a745;
+    font-weight: 500;
+}
+
+/* Style for Cancelled badge */
+.badge.cancelled {
+    background-color: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffeeba;
+}
+
+.yellowstack-logo {
+    background-color: #E3F2FD;
+    color: #1565C0;
+    padding: 8px 16px;
+    border-radius: 4px;
+    display: inline-block;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s ease;
+    text-align: center;
+    min-width: 200px;
+    border: 1px solid rgba(0,0,0,0.05);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.logo-main {
+    font-size: 20px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    display: block;
+    line-height: 1.2;
+    font-family: 'Roboto', sans-serif;
+}
+
+.logo-subtext {
+    font-size: 12px;
+    font-weight: 400;
+    opacity: 0.7;
+    display: block;
+    margin-top: 2px;
+    font-family: 'Roboto', sans-serif;
+}
+
+/* Adaptation for sidebar */
+.navbar-brand {
+    padding: 0 !important;
+    margin: 15px 0 !important;
+    display: flex;
+    justify-content: center;
+    width: 100%;
+}
+
+.navbar-brand-autodark a {
+    text-decoration: none;
+}
